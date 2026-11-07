@@ -562,7 +562,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='23';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='24';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1098,7 +1098,8 @@ function reportSheet(){
     <span class="pending">Den Spielbericht auf handball.net beim Spiel als PDF herunterladen und hier auswählen. Die Datei wird nur auf diesem Gerät gelesen.</span>
     <span id="r_status" class="pending"></span></div>`;
   if(R){
-    const G=repGoals(R),ours=S.reportOurs||S.game.wir||guessOurTeam(R);S.reportOurs=ours;
+    const inv=matchTeam(R.meta.heim,S.cfg.nameH)?'heim':matchTeam(R.meta.gast,S.cfg.nameH)?'gast':null;
+    const G=repGoals(R),ours=inv||S.reportOurs||S.game.wir||guessOurTeam(R);S.reportOurs=ours;
     const cnt=(k,t)=>R.events.filter(e=>e.kind===k&&(!t||e.team===t)).length;
     h+=`<div class="facts">
       <div class="fact"><small>Spiel</small><b>${esc(R.meta.heim||'?')} – ${esc(R.meta.gast||'?')}</b></div>
@@ -1106,14 +1107,15 @@ function reportSheet(){
       <div class="fact"><small>Endstand</small><b>${esc(R.meta.endstand||'')}</b></div>
       <div class="fact"><small>Gelesen</small><b>${G.length} Tore · ${cnt('miss7')} 7m-Fehlwürfe · ${cnt('pen')+cnt('dq')} Zeitstrafen · ${cnt('timeout')} Auszeiten</b></div>
       <div class="fact"><small>Kader</small><b>Heim ${R.roster.heim.length} · Gast ${R.roster.gast.length} Spieler</b></div></div>
-      <h3>Wir sind</h3><div class="radio">
+      ${inv?'':`<div class="find warn"><span><b>Kein Spiel von ${esc(S.cfg.nameH)}.</b> Der Bericht ist in die Statistik übernommen. Kader und Teamnamen werden nicht verändert. Für die Statistik weiterer Spiele besser Statistik → Daten holen nutzen.</span></div>`}
+      <div ${inv?'':'hidden'}><h3>Wir sind</h3><div class="radio">
       <label><input type="radio" name="r_ours" value="heim" ${ours==='heim'?'checked':''}> Heim · ${esc(R.meta.heim||'')}</label>
       <label><input type="radio" name="r_ours" value="gast" ${ours==='gast'?'checked':''}> Gast · ${esc(R.meta.gast||'')}</label></div>
       <h3>Übernehmen</h3><div class="radio">
       <label class="check"><input type="checkbox" id="r_roster" checked> Kader beider Teams mit Namen</label>
-      <label class="check"><input type="checkbox" id="r_names" checked> Mannschaftsnamen</label></div>
+      <label class="check"><input type="checkbox" id="r_names" checked> Name des Gegners</label></div>
       <div class="row">${posEv().length?`<button class="tool primary" id="r_sync">Mit erfassten Szenen abgleichen</button>`:`<button class="tool primary" id="r_skel">Grundgerüst aus Spielbericht anlegen</button>`}
-      <button class="tool" id="r_only">Nur Kader und Namen übernehmen</button></div>
+      <button class="tool" id="r_only">Nur Kader und Gegnernamen übernehmen</button></div></div>
       <p class="pending">${posEv().length?`Beim Abgleich werden die ${score().h+score().g} erfassten Tore den ${G.length} Toren im Bericht zugeordnet. Danach siehst du alle Abweichungen und entscheidest, was übernommen wird.`:'Es sind noch keine Szenen erfasst. Das Grundgerüst legt alle Tore, 7m-Fehlwürfe und Zeitstrafen aus dem Bericht an. Wurfposition, Spielzug und Qualität kannst du danach nicht mehr live erfassen, aber die Torfolge und Torschützen stehen.'}</p>`;
   }
   openSheet(h);
@@ -1123,9 +1125,9 @@ function reportSheet(){
     catch(err){$('r_status').innerHTML='<span class="err">'+esc(err.message||err)+'</span>';}};
   if(!R)return;
   document.querySelectorAll('[name=r_ours]').forEach(r=>r.onchange=()=>{S.reportOurs=r.value;save();});
-  const takeOver=()=>{const ours=S.reportOurs,opp=ours==='heim'?'gast':'heim';
+  const takeOver=()=>{const ours=S.reportOurs,opp=ours==='heim'?'gast':'heim';if(!(matchTeam(R.meta.heim,S.cfg.nameH)||matchTeam(R.meta.gast,S.cfg.nameH)))return;
     if($('r_roster').checked){if(R.roster[ours].length)mergeOwnRoster(R.roster[ours]);if(R.roster[opp].length)S.cfg.rosterG=R.roster[opp].map(p=>({nr:p.nr,name:p.name}));}
-    if($('r_names').checked){if(R.meta[ours])S.cfg.nameH=R.meta[ours];if(R.meta[opp])S.cfg.nameG=R.meta[opp];}};
+    if($('r_names').checked){if(R.meta[opp])S.cfg.nameG=R.meta[opp];}};
   $('r_only').onclick=()=>{takeOver();save();closeSheet();toast('Kader und Namen übernommen');};
   if($('r_skel'))$('r_skel').onclick=()=>{takeOver();buildSkeleton(R,S.reportOurs);save();closeSheet();toast('Grundgerüst angelegt');};
   if($('r_sync'))$('r_sync').onclick=()=>{takeOver();save();syncSheet(buildSync(R,S.reportOurs));};
