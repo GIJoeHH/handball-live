@@ -91,8 +91,15 @@ button:focus-visible,[tabindex]:focus-visible,input:focus-visible,textarea:focus
 .tool{min-height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);font-weight:600;font-size:14px}
 
 /* Hauptbereich */
-.main{display:grid;grid-template-columns:1.05fr 1fr 1fr;gap:10px}
-@media (max-width:1000px){.main{grid-template-columns:1fr 1fr}.col3{grid-column:1 / -1}}
+.main{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,1fr) minmax(0,.85fr);gap:10px;align-items:start}
+.mcol{display:grid;gap:10px;align-content:start;min-width:0}
+.rcol{position:sticky;top:8px}
+.rcol .resrow{grid-template-columns:1fr}
+.rcol .resgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+.rcol .resgrid .btn{min-height:58px}
+.rcol .resrow .undo{min-width:0}
+.rcol .keeprow{flex-direction:column;align-items:stretch}
+@media (max-width:1000px){.main{grid-template-columns:1fr 1fr}.rcol{grid-column:1 / -1;position:static}.rcol .resgrid{grid-template-columns:repeat(4,minmax(0,1fr))}.rcol .resrow{grid-template-columns:minmax(0,1fr) auto}.rcol .keeprow{flex-direction:row;align-items:center}}
 @media (max-width:640px){.main{grid-template-columns:1fr}.score .goals{font-size:34px}}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;gap:8px;align-content:start;min-width:0}
 .label{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;display:flex;justify-content:space-between;gap:8px}
@@ -214,7 +221,7 @@ th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .resgrid{grid-template-columns:repeat(7,minmax(0,1fr))}
 .resrow .undo{min-width:120px}
 @media (max-width:900px){.resgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
-@media (max-width:560px){.resrow{grid-template-columns:1fr}.resgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (max-width:560px){.resrow,.rcol .resrow{grid-template-columns:1fr}.resgrid,.rcol .resgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .res.locked{opacity:.38}
 #posCard.need{border-color:var(--warn-line);border-width:2px}
 #posCard.nudge{animation:nudge .5s ease-in-out 1}
@@ -464,6 +471,7 @@ window.hbHardReload=async function(){
   </div>
 
   <div class="main">
+  <div class="mcol">
     <section class="card">
       <div class="label"><span><span class="stepn">1</span><span id="playLabel">Spielzug</span> · optional</span><button class="mini" id="editPlays">Namen ändern</button></div>
       <div class="grid g2" id="plays"></div>
@@ -474,11 +482,15 @@ window.hbHardReload=async function(){
       <div class="posrow"><span class="pending">Genau dort antippen, wo geworfen wurde.</span><button class="btn" id="btn7m">Siebenmeter</button></div>
       <div class="label"><span><span class="stepn">3</span>Wurfqualität</span></div>
       <div class="grid g2" id="quality"></div>
-      <div class="label"><span><span class="stepn">3</span>Wurfziel · optional · Sicht des Werfers</span></div>
+    </section>
+  </div>
+  <div class="mcol">
+    <section class="card">
+      <div class="label"><span><span class="stepn">4</span>Wurfziel · optional · Sicht des Werfers</span></div>
       <svg class="goal" id="goalPick" viewBox="0 0 300 206" role="group" aria-label="Wurfziel antippen"></svg>
     </section>
-    <section class="card col3">
-      <div class="label"><span><span class="stepn">4</span><span id="playerLabel">Werfer</span></span></div>
+    <section class="card">
+      <div class="label"><span><span class="stepn">5</span><span id="playerLabel">Werfer</span></span></div>
       <div class="grid players" id="players"></div>
       <div class="label" id="defLabel" hidden><span id="defText">Unser Abwehrspieler · optional</span></div>
       <div class="grid players small" id="defenders" hidden></div>
@@ -486,12 +498,15 @@ window.hbHardReload=async function(){
       <div class="grid players small" id="assists" hidden></div>
     </section>
   </div>
+  <div class="mcol rcol">
   <section class="card resultbar">
-    <div class="label"><span><span class="stepn">5</span>Ergebnis · schließt den Ballbesitz ab</span></div>
+    <div class="label"><span><span class="stepn">6</span>Ergebnis · schließt den Ballbesitz ab</span></div>
     <div class="pending" id="pending"></div>
     <div class="resrow"><div class="grid resgrid" id="results"></div><button class="undo" id="undo">↶ Rückgängig</button></div>
     <div class="keeprow"><button class="keep fix" id="fixKeep" hidden></button><button class="keep" id="keepBtn" aria-pressed="false"></button><button class="keep sw" id="swBtn">⇄ Ballbesitz wechseln</button><span class="pending" id="keepHint"></span></div>
   </section>
+  </div>
+  </div>
   <section class="card">
     <div class="label"><span>Verlauf <span class="badge" id="syncBadge"></span></span><span id="logCount"></span></div>
     <div class="log" id="log"></div>
@@ -570,7 +585,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='27';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='28';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
