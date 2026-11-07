@@ -1,0 +1,17 @@
+{
+  "name": "Handball Live-Erfassung",
+  "short_name": "Handball Live",
+  "description": "Spiele vorbereiten, live erfassen und analysieren.",
+  "lang": "de",
+  "start_url": "./#erfassen",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#e9eef3",
+  "theme_color": "#245fa8",
+  "icons": [
+    {"src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
+  ]
+}
