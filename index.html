@@ -383,6 +383,11 @@ td.draw{color:var(--warn);font-weight:700}
 .sched tr.future td{color:var(--ink)}
 
 select.mini{font:inherit;font-size:12px;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:4px 6px;min-height:30px}
+
+.lastc{display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap}
+.mini.x{color:var(--muted);min-width:28px}
+.rdhl{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rdhl .mini.x{font-size:11px;text-transform:none;letter-spacing:0}
 </style>
 
 </head>
@@ -552,7 +557,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='18';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='19';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1793,6 +1798,10 @@ function renderStats(){
   if($('sch_own'))$('sch_own').onchange=()=>{schedOwn=$('sch_own').checked;renderStats();};
   document.querySelectorAll('[data-setrd]').forEach(s=>s.onchange=()=>{const e=(leagueState().sched||{})[s.dataset.setrd];if(e&&s.value){e.round=+s.value;save();renderStats();}});
   document.querySelectorAll('[data-cand]').forEach(b=>b.onclick=()=>candSheet(+b.dataset.cand));
+  document.querySelectorAll('[data-delsk]').forEach(b=>b.onclick=()=>{const L=leagueState();if(L.sched)delete L.sched[b.dataset.delsk];save();toast('Termin gelöscht');renderStats();});
+  document.querySelectorAll('[data-delrd]').forEach(b=>b.onclick=()=>{const v=b.dataset.delrd,L=leagueState(),ks=Object.keys(L.sched||{}).filter(k=>v==='none'?!L.sched[k].round&&!scheduleRows().some(r=>r.sk===k&&r.round):(L.sched[k].round===+v||scheduleRows().some(r=>r.sk===k&&r.round===+v)));
+    openSheet(head('Termine löschen?')+`<p>${ks.length} eingefügte Termine ${v==='none'?'ohne Spieltag':'von Spieltag '+v} werden gelöscht. Eingelesene Spielberichte und Daten von handball.net bleiben erhalten.</p><div class="row"><button class="tool danger" id="dr_yes">Löschen</button><button class="tool" data-close>Abbrechen</button></div>`);
+    $('dr_yes').onclick=()=>{ks.forEach(k=>delete L.sched[k]);save();closeSheet();toast(ks.length+' Termine gelöscht');};});
   document.querySelectorAll('[data-steam]').forEach(b=>b.onclick=()=>{statTeam=statTeam===b.dataset.steam?null:b.dataset.steam;renderStats();});
   document.querySelectorAll('[data-adel]').forEach(b=>b.onclick=()=>{const i=+b.dataset.adel,g=S.archive[i];
     openSheet(head('Archiviertes Spiel löschen?')+`<p>${esc(g.nameH)} – ${esc(g.nameG)} (${esc(fmtDate(g.datum))}) wird mit allen Szenen gelöscht.</p><div class="row"><button class="tool danger" id="ad_yes">Löschen</button><button class="tool" data-close>Abbrechen</button></div>`);
@@ -1857,7 +1866,8 @@ function fetchSheet(){
       ${IS_WEBAPP?'<label class="check"><input type="checkbox" id="fx_logos" checked> Vereinslogos übernehmen</label>':''}<div id="fx_hbst" class="pending"></div></div>
     <div class="stepc"><b>Spielplan-Text einfügen</b><div class="pending">Auf der Teamseite von handball.net die Liste der Spiele markieren (alle Spiele sichtbar scrollen), kopieren und hier einfügen. Die App erkennt Datum, Uhrzeit, Paarung, Ergebnis und Status.</div>
       <textarea id="fx_txt" class="pastearea" placeholder="Sa, 12.09.2026&#10;Oberliga männliche C-Jugend …&#10;BEENDET&#10;…"></textarea><div class="row"><label class="check">Spieltag <select id="fx_round" aria-label="Spieltag der eingefügten Spiele"><option value="">nicht angeben (Teamseite)</option>${Array.from({length:(L.rounds&&L.rounds.total)||18},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}</select></label><button class="tool" id="fx_txtgo">Spielplan übernehmen</button></div>
-      <div class="pending">Ganze Liga: auf der Ligaseite einen Spieltag wählen, Spiele kopieren, hier den Spieltag angeben und übernehmen. Für jeden Spieltag wiederholen.</div><div id="fx_txtst" class="pending"></div></div>
+      <div class="pending">Ganze Liga: auf der Ligaseite einen Spieltag wählen, Spiele kopieren, hier den Spieltag angeben und übernehmen. Für jeden Spieltag wiederholen. Schon vorhandene Spiele werden dabei nur um den Spieltag ergänzt.</div><div id="fx_txtst" class="pending"></div>
+      ${Object.keys(L.sched||{}).length?`<div class="row"><span class="pending">${Object.keys(L.sched).length} eingefügte Termine gespeichert</span><button class="mini danger" id="fx_clr">Alle eingefügten Termine löschen</button></div>`:''}</div>
     ${hbGamesHTML()}
     <div class="stepc"><b><span class="stepn">1</span>Staffel auf handball.net öffnen</b>
       <label class="fl">Link zum Spielplan eurer Staffel (einmalig eintragen)<input type="url" id="fx_url" value="${esc(L.url)}" placeholder="https://www.handball.net/…"></label>
@@ -1873,6 +1883,8 @@ function fetchSheet(){
     <div class="row"><button class="tool" data-close>Fertig</button></div>`;
   openSheet(h);
   $('fx_url').onchange=()=>{L.url=$('fx_url').value.trim();save();fetchSheet();};
+  if($('fx_clr'))$('fx_clr').onclick=()=>{openSheet(head('Alle Termine löschen?')+`<p>Alle ${Object.keys(L.sched||{}).length} eingefügten Termine werden gelöscht. Eingelesene Spielberichte und Daten von handball.net bleiben erhalten.</p><div class="row"><button class="tool danger" id="cl_all">Alle löschen</button><button class="tool" data-close>Abbrechen</button></div>`);
+    $('cl_all').onclick=()=>{L.sched={};save();closeSheet();toast('Alle eingefügten Termine gelöscht');fetchSheet();};};
   $('fx_txtgo').onclick=()=>{const list=parseTeamText($('fx_txt').value),rd=+$('fx_round').value||null;if(rd)list.forEach(e=>e.round=rd);if(!list.length){$('fx_txtst').innerHTML='<span class="err">Keine Spiele erkannt. Bitte die Liste mit Datum, Status und Teams kopieren.</span>';return;}
     const r=applySched(list),done=list.filter(e=>e.finished).length;toast(`${list.length} Termine${rd?' von Spieltag '+rd:''} übernommen (${done} mit Ergebnis)`);$('fx_txt').value='';fetchSheet();if(view==='statistik')renderStats();};
   $('fx_hb').onchange=async ev=>{const files=[...ev.target.files];if(!files.length)return;const st=$('fx_hbst');const ids=new Set();let T=0,N=0,SC=0,bad=[];
@@ -2289,19 +2301,20 @@ function scheduleHTML(){
     <div class="pending">${esc(S.cfg.nameH)}: <b>${own.length} Spiele · ${w} S, ${d} U, ${l} N</b> (aus den vorhandenen Daten)${total?` · Spieltag ${cur||'?'} von ${total}`:''}</div>
     <div class="tw"><table class="hbg sched"><thead><tr><th>ST</th><th>Datum</th><th>Heim</th><th>Gast</th><th class="r">Ergebnis</th><th class="r">HZ</th><th>Spielbericht</th></tr></thead><tbody>`;
   const groups=schedOwn?[{label:null,items:[...list].filter(r=>!r.guess||r.rep).sort((a,b)=>String(a.date||'9').localeCompare(String(b.date||'9')))}]
-    :rounds.map(rd=>({label:rd==null?'Weitere Termine (Spieltag nicht bekannt)':`Spieltag ${rd}${rd===cur?' · aktuell':''}`,cur:rd===cur,items:list.filter(x=>x.round===rd).sort((a,b)=>rd==null?String(a.date||'').localeCompare(String(b.date||'')):0)}));
+    :rounds.map(rd=>({rd,label:rd==null?'Weitere Termine (Spieltag nicht bekannt)':`Spieltag ${rd}${rd===cur?' · aktuell':''}`,cur:rd===cur,items:list.filter(x=>x.round===rd).sort((a,b)=>rd==null?String(a.date||'').localeCompare(String(b.date||'')):0)}));
   const now=Date.now();
-  for(const gr of groups){if(gr.label)h+=`<tr class="rdh${gr.cur?' cur':''}"><td colspan="7">${gr.label}</td></tr>`;
+  for(const gr of groups){if(gr.label){const nSk=gr.items.filter(x=>x.sk).length;h+=`<tr class="rdh${gr.cur?' cur':''}"><td colspan="7"><span class="rdhl">${gr.label}${nSk?`<button class="mini x" data-delrd="${gr.rd==null?'none':gr.rd}">${nSk} eingefügte Termine löschen</button>`:''}</span></td></tr>`;}
     for(const r of gr.items){const rd=r.round;const res=r.hs!=null&&r.as!=null?`${r.hs}:${r.as}`:'',us=mine(r);
       let out='';if(us&&res){const a=isOurTeam(r.home)?r.hs:r.as,b=isOurTeam(r.home)?r.as:r.hs;out=a>b?'win':a<b?'loss':'draw';}
       const canGuess=Object.values(L.games||{}).some(g=>g.report);
       const rep=r.rep?'<span class="st ok">✓ eingelesen</span>':r.link?`<a class="mini linkbtn2" href="${esc(r.link)}" target="_blank" rel="noopener">Bericht öffnen</a>${r.guess?' <span class="st">vermutet</span>':''}`
         :r.finished&&r.round&&canGuess?`<button class="mini" data-cand="${r.round}">Bericht suchen</button>`
-        :r.finished&&r.sk&&canGuess&&!r.cup?`<select class="mini" data-setrd="${esc(r.sk)}" aria-label="Spieltag wählen"><option value="">ST wählen</option>${Array.from({length:(L.rounds&&L.rounds.total)||18},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}</select>`
+        :r.finished&&r.round?'<span class="pending" title="Unter Daten holen einmal die gesicherte Ligaseite einlesen">Link: Ligaseite einlesen</span>'
+        :r.finished&&r.sk&&!r.cup?`<select class="mini" data-setrd="${esc(r.sk)}" aria-label="Spieltag wählen"><option value="">ST wählen</option>${Array.from({length:(L.rounds&&L.rounds.total)||18},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}</select>`
         :`<span class="pending">${r.live?'läuft':r.finished?'kein Bericht':'offen'}</span>`;
       h+=r.guess&&!r.rep?`<tr class="guess"><td class="num">${rd}</td><td colspan="5" class="pending">Spiel ${esc(String(r.order).padStart(2,'0'))} · Spielnummer ${esc(r.code)} · Paarung noch unbekannt</td><td>${rep}</td></tr>`
         :`<tr class="${us?'ours':''}${r.date&&!r.finished&&new Date(r.date)>now&&!gr.label?' future':''}"><td class="num">${rd||'–'}${r.cup?' <span class="st">Pokal</span>':''}</td><td class="num">${r.date?esc(gameDate(r.date)):esc(r.datum||'')}</td><td>${logoImg(r.home,'sm')}${esc(r.home||'')}</td><td>${logoImg(r.away,'sm')}${esc(r.away||'')}</td>
-          <td class="r num ${out}">${res}${r.live?' <span class="st diff">läuft</span>':''}${r.diff?` <span class="st diff" title="${esc(r.diff)}">≠</span>`:''}</td><td class="r num">${r.h1?esc(r.h1):''}</td><td>${rep}</td></tr>`;}}
+          <td class="r num ${out}">${res}${r.live?' <span class="st diff">läuft</span>':''}${r.diff?` <span class="st diff" title="${esc(r.diff)}">≠</span>`:''}</td><td class="r num">${r.h1?esc(r.h1):''}</td><td><span class="lastc">${rep}${r.sk?`<button class="mini x" data-delsk="${esc(r.sk)}" aria-label="Termin löschen" title="Termin löschen">×</button>`:''}</span></td></tr>`;}}
   h+=`</tbody></table></div><div class="pending">Termine und Ergebnisse stammen aus gesicherten handball.net-Seiten, dem eingefügten Teamspielplan und eingelesenen Spielberichten. Den kompletten Spielplan holst du unter <b>Daten holen → Spielplan-Text einfügen</b>: auf der Teamseite alle Spiele markieren und kopieren, bei mehreren Seiten jede Seite nacheinander. ≠ markiert ein Spiel, bei dem Spielbericht und handball.net nicht übereinstimmen.</div></section>`;
   return h;
 }

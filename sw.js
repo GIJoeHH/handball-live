@@ -1,6 +1,6 @@
 /* Handball Live – Service Worker für den Offline-Betrieb.
    VERSION bei jeder Änderung an index.html erhöhen, damit die iPads die neue Fassung laden. */
-const VERSION = 'v18';
+const VERSION = 'v19';
 const CACHE = 'handball-live-' + VERSION;
 const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 const PDFJS = ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'];
