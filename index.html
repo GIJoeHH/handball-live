@@ -391,6 +391,8 @@ select.mini{font:inherit;font-size:12px;font-weight:600;color:var(--ink);backgro
 
 .cands{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap}
 .cnum{min-width:30px;justify-content:center;padding:0 6px}
+
+.stsel{min-width:52px}
 </style>
 
 </head>
@@ -560,7 +562,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='21';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='22';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1799,7 +1801,7 @@ function renderStats(){
   $('st_get').onclick=()=>fetchSheet();
   document.querySelectorAll('[data-ssub]').forEach(b=>b.onclick=()=>{statSub=b.dataset.ssub;renderStats();});
   if($('sch_own'))$('sch_own').onchange=()=>{schedOwn=$('sch_own').checked;renderStats();};
-  document.querySelectorAll('[data-setrd]').forEach(s=>s.onchange=()=>{const e=(leagueState().sched||{})[s.dataset.setrd];if(e&&s.value){e.round=+s.value;e.roundManual=true;save();renderStats();}});
+  document.querySelectorAll('[data-setrd]').forEach(s=>s.onchange=()=>{const e=(leagueState().sched||{})[s.dataset.setrd];if(e){e.round=s.value?+s.value:null;e.roundManual=!!s.value;save();toast(s.value?'Spieltag '+s.value+' gesetzt':'Spieltag entfernt');renderStats();}});
   document.querySelectorAll('[data-cand]').forEach(b=>b.onclick=()=>candSheet(+b.dataset.cand));
   document.querySelectorAll('[data-delsk]').forEach(b=>b.onclick=()=>{const L=leagueState();if(L.sched)delete L.sched[b.dataset.delsk];save();toast('Termin gelöscht');renderStats();});
   document.querySelectorAll('[data-delrd]').forEach(b=>b.onclick=()=>{const v=b.dataset.delrd,L=leagueState(),ks=Object.keys(L.sched||{}).filter(k=>v==='none'?!L.sched[k].round&&!scheduleRows().some(r=>r.sk===k&&r.round):(L.sched[k].round===+v||scheduleRows().some(r=>r.sk===k&&r.round===+v)));
@@ -2314,10 +2316,10 @@ function scheduleHTML(){
       const rep=r.rep?'<span class="st ok">✓ eingelesen</span>':r.link?`<a class="mini linkbtn2" href="${esc(r.link)}" target="_blank" rel="noopener">Bericht öffnen</a>${r.guess?' <span class="st">vermutet</span>':''}`
         :r.round&&canGuess?RL(r)
         :r.finished&&r.round?'<span class="pending" title="Unter Daten holen einmal die gesicherte Ligaseite einlesen">Link: Ligaseite einlesen</span>'
-        :r.finished&&r.sk&&!r.cup?`<select class="mini" data-setrd="${esc(r.sk)}" aria-label="Spieltag wählen"><option value="">ST wählen</option>${Array.from({length:(L.rounds&&L.rounds.total)||18},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}</select>`
+        :r.finished&&r.sk&&!r.cup?'<span class="pending">Spieltag links wählen</span>':false?`<select class="mini" data-setrd="${esc(r.sk)}" aria-label="Spieltag wählen"><option value="">ST wählen</option>${Array.from({length:(L.rounds&&L.rounds.total)||18},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}</select>`
         :`<span class="pending">${r.live?'läuft':r.finished?'kein Bericht':'offen'}</span>`;
       h+=r.guess&&!r.rep?`<tr class="guess"><td class="num">${rd}</td><td colspan="5" class="pending">Spiel ${esc(String(r.order).padStart(2,'0'))} · Spielnummer ${esc(r.code)} · Paarung noch unbekannt</td><td>${rep}</td></tr>`
-        :`<tr class="${us?'ours':''}${r.date&&!r.finished&&new Date(r.date)>now&&!gr.label?' future':''}"><td class="num">${rd||'–'}${r.cup?' <span class="st">Pokal</span>':''}</td><td class="num">${r.date?esc(gameDate(r.date)):esc(r.datum||'')}</td><td>${logoImg(r.home,'sm')}${esc(r.home||'')}</td><td>${logoImg(r.away,'sm')}${esc(r.away||'')}</td>
+        :`<tr class="${us?'ours':''}${r.date&&!r.finished&&new Date(r.date)>now&&!gr.label?' future':''}"><td class="num">${r.sk&&!r.cup?`<select class="mini stsel" data-setrd="${esc(r.sk)}" aria-label="Spieltag">${['',...Array.from({length:(L.rounds&&L.rounds.total)||18},(_,k)=>k+1)].map(v=>`<option value="${v}"${(rd||'')===v?' selected':''}>${v||'–'}</option>`).join('')}</select>`:(rd||'–')}${r.cup?' <span class="st">Pokal</span>':''}</td><td class="num">${r.date?esc(gameDate(r.date)):esc(r.datum||'')}</td><td>${logoImg(r.home,'sm')}${esc(r.home||'')}</td><td>${logoImg(r.away,'sm')}${esc(r.away||'')}</td>
           <td class="r num ${out}">${res}${r.live?' <span class="st diff">läuft</span>':''}${r.diff?` <span class="st diff" title="${esc(r.diff)}">≠</span>`:''}</td><td class="r num">${r.h1?esc(r.h1):''}</td><td><span class="lastc">${rep}${r.sk?`<button class="mini x" data-delsk="${esc(r.sk)}" aria-label="Termin löschen" title="Termin löschen">×</button>`:''}</span></td></tr>`;}}
   h+=`</tbody></table></div><div class="pending">Termine und Ergebnisse stammen aus gesicherten handball.net-Seiten, dem eingefügten Teamspielplan und eingelesenen Spielberichten. Den kompletten Spielplan holst du unter <b>Daten holen → Spielplan-Text einfügen</b>: auf der Teamseite alle Spiele markieren und kopieren, bei mehreren Seiten jede Seite nacheinander. ≠ markiert ein Spiel, bei dem Spielbericht und handball.net nicht übereinstimmen.</div></section>`;
   return h;
@@ -2465,9 +2467,22 @@ function autoRounds(){
   for(const c of coded){const cr=codeRound(c.code);if(!cr)continue;const g=[...A.keys()].find(e=>matchTeam(e.home,c.home)&&matchTeam(e.away,c.away));if(g)offs.push(cr.round-A.get(g));}
   const cnt={};offs.forEach(o=>cnt[o]=(cnt[o]||0)+1);const off=offs.length?+Object.entries(cnt).sort((x,y)=>y[1]-x[1])[0][0]:0;
   let set=0;for(const [g,rr] of A){if(g.roundManual)continue;g.round=rr+off;g.roundAuto=true;set++;}
-  save();return{rounds:r,catchup:left.length-open,open,anchors:offs.length,ok:offs.filter(o=>o===off).length,set};
+  // Spielnummern haben Vorrang
+  const fixed=new Set();
+  for(const c of coded){const cr=codeRound(c.code);if(!cr)continue;const g=all.find(e=>matchTeam(e.home,c.home)&&matchTeam(e.away,c.away));if(g){if(!g.roundManual)g.round=cr.round;fixed.add(g);}}
+  all.filter(g=>g.roundManual).forEach(g=>fixed.add(g));
+  // Hin- und Rückspiel nie in derselben Saisonhälfte
+  const total=(L.rounds&&L.rounds.total)||Math.max(r+off,18),half=Math.floor(total/2),hOf=x=>x<=half?1:2;let moved=0;
+  const busy=()=>{const B={};for(const e of all)if(e.round){(B[e.round]=B[e.round]||new Set()).add(normT(e.home));B[e.round].add(normT(e.away));}return B;};
+  for(const g of all){if(!g.round)continue;const rev=all.find(e=>e!==g&&e.round&&matchTeam(e.home,g.away)&&matchTeam(e.away,g.home));if(!rev||hOf(rev.round)!==hOf(g.round))continue;
+    const mv=fixed.has(g)&&!fixed.has(rev)?rev:!fixed.has(g)?(fixed.has(rev)?g:(String(g.date)>String(rev.date)?g:rev)):null;if(!mv)continue;
+    const B=busy(),a=normT(mv.home),b=normT(mv.away),want=hOf(mv.round)===1?2:1,cand=[];
+    for(let i=1;i<=total;i++){if(hOf(i)!==want)continue;const s=B[i]||new Set();if(!s.has(a)&&!s.has(b))cand.push(i);}
+    if(cand.length){const t=new Date(mv.date).getTime();cand.sort((x,y)=>Math.abs(x-mv.round)-Math.abs(y-mv.round));mv.round=cand[0];moved++;}}
+  if(moved)save();
+  save();return{rounds:r,catchup:left.length-open,open,anchors:offs.length,ok:offs.filter(o=>o===off).length,set,moved};
 }
-function autoRoundsMsg(res){if(!res)return '';return `Spieltage erkannt: ${res.rounds} Spieltage${res.catchup?', '+res.catchup+' Nachholspiel'+(res.catchup>1?'e':'')+' zugeordnet':''}${res.open?', '+res.open+' nicht zuordenbar':''}${res.anchors?` · Kontrolle über Spielnummern: ${res.ok} von ${res.anchors} passen`:''}.`;}
+function autoRoundsMsg(res){if(!res)return '';return `Spieltage erkannt: ${res.rounds} Spieltage${res.catchup?', '+res.catchup+' Nachholspiel'+(res.catchup>1?'e':'')+' zugeordnet':''}${res.open?', '+res.open+' nicht zuordenbar':''}${res.moved?', '+res.moved+' Rückspiel'+(res.moved>1?'e':'')+' in die andere Saisonhälfte verschoben':''}${res.anchors?` · Kontrolle über Spielnummern: ${res.ok} von ${res.anchors} passen`:''}.`;}
 
 /* Vermutete Bericht-Links je Spiel: Ausschlussverfahren je Spieltag und gespiegelte Rückrunde */
 function reportLinks(R){
