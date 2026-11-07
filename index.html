@@ -269,7 +269,10 @@ th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 @media (max-width:560px){.crow{grid-template-columns:auto minmax(0,1fr)}.crow .chk,.crow .row{grid-column:2}}
 .players .btn:disabled{opacity:.3}
 /* Installierte App (Home-Bildschirm): Abstand zur Statusleiste und zu den Fenstersymbolen des iPad */
-@media (display-mode: standalone){body{padding-top:calc(env(safe-area-inset-top,0px) + 30px)}}
+@media (display-mode: standalone){body{padding-top:calc(env(safe-area-inset-top,0px) + 52px)}}
+html.standalone body{padding-top:calc(env(safe-area-inset-top,0px) + 52px)}
+.ver{font-size:12px;color:var(--muted);font-weight:600;border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--surface);white-space:nowrap}
+@media (max-width:640px){.ver{margin-left:auto}}
 </style>
 
 </head>
@@ -280,6 +283,7 @@ th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
     <a href="#erfassen" class="navtab" data-view="erfassen"><span class="step">2</span>Spiel erfassen</a>
     <a href="#analyse" class="navtab" data-view="analyse"><span class="step">3</span>Analyse</a>
     <span class="navmeta" id="navMeta"></span>
+    <span class="ver" id="appVer"></span>
   </nav>
   <div class="demo-note" id="demoNote" hidden>
     <span>Beispieldaten zum Ausprobieren, kein echtes Spiel.</span>
@@ -345,7 +349,7 @@ th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
   </section>
   </div>
   </div>
-  <div class="foot">Prototyp · Alle Daten, auch importierte Namen, bleiben nur auf diesem Gerät</div>
+  <div class="foot">Alle Daten, auch importierte Namen, bleiben nur auf diesem Gerät · <span id="footVer"></span></div>
 </div>
 
 <div class="overlay" id="overlay" hidden><div class="sheet" id="sheet" role="dialog" aria-modal="true"></div></div>
@@ -416,6 +420,10 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
+const APP_VERSION='3';
+/* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
+const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
+if(STANDALONE)document.documentElement.classList.add('standalone');
 const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
 const RES=['tor','gehalten','vorbei','block','tf','7m'];
 const SHOT=['tor','gehalten','vorbei','block'];
@@ -567,6 +575,7 @@ function render(){
   VIEWS.forEach(v=>$('view-'+v).hidden=v!==view);
   const sc0=score();$('navMeta').textContent=`${S.cfg.nameH} ${sc0.h}:${sc0.g} ${S.cfg.nameG}`;
   $('demoNote').hidden=!S.demo;
+  const vtxt='Version '+APP_VERSION+' · '+(STANDALONE?'App':'Browser');$('appVer').textContent=vtxt;$('footVer').textContent=vtxt;
   if(view==='vorbereitung')renderPrep();else if(view==='analyse')renderAna();else renderLive();
   keepAwake();
 }
@@ -1435,7 +1444,7 @@ setInterval(tick,250);
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
   window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').then(reg=>{
     reg.addEventListener('updatefound',()=>{const nw=reg.installing;if(!nw)return;nw.addEventListener('statechange',()=>{
-      if(nw.state==='installed'&&navigator.serviceWorker.controller){const t=document.getElementById('toast');if(t){t.textContent='Neue Version geladen. Wird beim nächsten Öffnen aktiv.';t.hidden=false;setTimeout(()=>t.hidden=true,4000);}}});});
+      if(nw.state==='installed'&&navigator.serviceWorker.controller){const t=document.getElementById('toast');if(t){t.textContent='Neue Version geladen. App schließen und neu öffnen.';t.hidden=false;setTimeout(()=>t.hidden=true,4000);}}});});
   }).catch(()=>{});});
 }
 </script>
