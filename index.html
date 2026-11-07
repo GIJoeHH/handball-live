@@ -592,7 +592,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='31';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='32';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -2719,7 +2719,8 @@ function bindKlasse(){
 /* ---------- Spielerdatenbank: Saisonwerte aus Spielberichten (laufend) und Tabellen (XLS/CSV) ---------- */
 const PDB_KEY='hb-live-players',XLSX_URL='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
 let PDB=null;
-function pdb(){if(!PDB){try{PDB=JSON.parse(localStorage.getItem(PDB_KEY));}catch(e){}if(!PDB||typeof PDB!=='object')PDB={v:1,current:'',modAt:0,seasons:{}};PDB.seasons=PDB.seasons||{};}return PDB;}
+function pdb(){if(!PDB){try{PDB=JSON.parse(localStorage.getItem(PDB_KEY));}catch(e){}if(!PDB||typeof PDB!=='object')PDB={v:1,current:'',modAt:0,seasons:{}};PDB.seasons=PDB.seasons||{};if(pdbStrip(PDB))try{localStorage.setItem(PDB_KEY,JSON.stringify(PDB));}catch(e){}}return PDB;}
+function pdbStrip(D){let ch=false;for(const s in D.seasons){const r=D.seasons[s];for(const g of [r.auto||{},r.players||{}])for(const q of Object.values(g))for(const k of ['g7','a7','pens'])if(k in q){delete q[k];ch=true;}}return ch;}
 function pdbSave(){const D=pdb();D.modAt=Date.now();try{localStorage.setItem(PDB_KEY,JSON.stringify(D));}catch(e){toast('Spielerdatenbank: Speicher voll');}}
 function seasonOfYM(y,m){const s=m>=7?y:y-1;return s+'/'+String((s+1)%100).padStart(2,'0');}
 const seasonNow=()=>{const d=new Date();return seasonOfYM(d.getFullYear(),d.getMonth()+1);};
@@ -2752,8 +2753,8 @@ function pdbRefresh(){
     const A=per[s]||(per[s]={});
     for(const side of ['heim','gast']){const x=r[side];if(!x||!x.team)continue;const pe=(r.ev||[]).filter(e=>(e.k==='pen'||e.k==='dq')&&e.team===side);
       for(const p of x.roster||[]){if(!p.name)continue;const k=pkey(p.name)+'|'+normT(x.team);const [g7,a7]=parseM7(p.m7);
-        const q=A[k]||(A[k]={name:p.name,team:x.team,nr:p.nr,spiele:0,tore:0,g7:0,a7:0,pens:null,best:0,dk:''});
-        q.spiele++;q.tore+=p.tore||0;q.g7+=g7;q.a7+=a7;if(pe.some(e=>e.nr!=null))q.pens=(q.pens||0)+pe.filter(e=>e.nr===p.nr).length;q.best=Math.max(q.best,p.tore||0);if((r.dk||'')>=q.dk){q.dk=r.dk||'';q.nr=p.nr;}}}}
+        const q=A[k]||(A[k]={name:p.name,team:x.team,nr:p.nr,spiele:0,tore:0,best:0,dk:''});
+        q.spiele++;q.tore+=p.tore||0;q.best=Math.max(q.best,p.tore||0);if((r.dk||'')>=q.dk){q.dk=r.dk||'';q.nr=p.nr;}}}}
   for(const s in per){const rec=seasonRec(s);const old=JSON.stringify(rec.auto||{}),nw=JSON.stringify(per[s]);if(old!==nw){rec.auto=per[s];rec.autoAt=Date.now();changed=true;}}
   if(changed)pdbSave();
 }
@@ -2766,9 +2767,9 @@ function playerHistory(name){const D=pdb(),now=seasonNow(),out=[];
     for(const [k,q] of Object.entries(rec.players||{}))if(samePlayer(q.name,name))out.push({season:s,...q,src:(q.src||'Tabelle')+als(q),_k:k});}
   return out;}
 const avgS=(t,g)=>g?(t/g).toFixed(1).replace('.',','):'–';
-function playerRowsHTML(L,withSeason){return `<div class="tw"><table><thead><tr>${withSeason?'<th>Saison</th>':''}<th>Team</th><th class="r">Nr.</th><th class="r">Spiele</th><th class="r">Tore</th><th class="r">Ø</th><th class="r">7m</th><th class="r">2 Min</th><th>Quelle</th>${L.some(q=>q._k)?'<th></th>':''}</tr></thead><tbody>${
-  L.map(q=>`<tr>${withSeason?`<td class="num">${esc(q.season)}</td>`:''}<td>${esc(q.team||'–')}</td><td class="r num">${/^Tabelle/.test(q.src||'')?'–':q.nr??'–'}</td><td class="r num">${q.spiele??'–'}</td><td class="r num">${q.tore??'–'}</td><td class="r num">${q.spiele!=null&&q.tore!=null?avgS(q.tore,q.spiele):'–'}</td><td class="r num">${q.a7?q.g7+'/'+q.a7:(q.g7!=null&&q.g7!==0?q.g7:'–')}</td><td class="r num">${q.pens??'–'}</td><td>${esc(q.src||'Spielberichte')}</td>${L.some(x=>x._k)?`<td>${q._k?`<button class="mini danger" data-pdbrm="${esc(q.season+'|'+q._k)}" aria-label="Eintrag löschen" title="Diesen Eintrag löschen">×</button>`:''}</td>`:''}</tr>${
-    q.extra&&Object.keys(q.extra).length?`<tr class="xrow"><td colspan="${(withSeason?9:8)+(L.some(x=>x._k)?1:0)}">${Object.entries(q.extra).map(([k,v])=>`${esc(k)}: <b>${esc(v)}</b>`).join(' · ')}</td></tr>`:''}`).join('')}</tbody></table></div>`;}
+function playerRowsHTML(L,withSeason){return `<div class="tw"><table><thead><tr>${withSeason?'<th>Saison</th>':''}<th>Team</th><th class="r">Nr.</th><th class="r">Spiele</th><th class="r">Tore</th><th class="r">Ø</th><th>Quelle</th>${L.some(q=>q._k)?'<th></th>':''}</tr></thead><tbody>${
+  L.map(q=>`<tr>${withSeason?`<td class="num">${esc(q.season)}</td>`:''}<td>${esc(q.team||'–')}</td><td class="r num">${/^Tabelle/.test(q.src||'')?'–':q.nr??'–'}</td><td class="r num">${q.spiele??'–'}</td><td class="r num">${q.tore??'–'}</td><td class="r num">${q.spiele!=null&&q.tore!=null?avgS(q.tore,q.spiele):'–'}</td><td>${esc(q.src||'Spielberichte')}</td>${L.some(x=>x._k)?`<td>${q._k?`<button class="mini danger" data-pdbrm="${esc(q.season+'|'+q._k)}" aria-label="Eintrag löschen" title="Diesen Eintrag löschen">×</button>`:''}</td>`:''}</tr>${
+    q.extra&&Object.keys(q.extra).length?`<tr class="xrow"><td colspan="${(withSeason?7:6)+(L.some(x=>x._k)?1:0)}">${Object.entries(q.extra).map(([k,v])=>`${esc(k)}: <b>${esc(v)}</b>`).join(' · ')}</td></tr>`:''}`).join('')}</tbody></table></div>`;}
 function openPlayer(name,team){
   pdbRefresh();const now=seasonNow(),cur=playsThisSeason(name)||[],hist=playerHistory(name);
   let h=head(esc(name));
@@ -2813,7 +2814,7 @@ function bindPdb(){
       const wb=XLSX.read(await f.arrayBuffer(),{type:'array'});pdbImport={file:f.name,wb,sheet:wb.SheetNames[0]};pdbImportSheet();}
     catch(e){$('pdb_st').innerHTML='<span class="err">Tabelle konnte nicht gelesen werden'+(navigator.onLine?'':' (für den ersten Import ist Internet nötig)')+'.</span>';}};
 }
-const PDB_FIELDS=[['name','Name (komplett)',/^(spieler(name)?|name|spieler\/in|player)$/i],['vorname','Vorname',/vorname|first/i],['nachname','Nachname',/nachname|familienname|last|^name$/i],['team','Team / Verein',/team|verein|mannschaft|club/i],['spiele','Spiele',/^(spiele|sp\.?|einsätze|games|anz\.? spiele)$/i],['tore','Tore',/^(tore|tore gesamt|goals|t)$/i],['g7','7m Tore',/7\s*m.*(tor|treffer)|^7m$/i],['a7','7m Versuche',/7\s*m.*(vers|würfe|wurf)/i],['pens','Zeitstrafen (2 Min)',/2\s*min|zeitstraf|strafen/i],['avg','Ø Tore pro Spiel',/^(t\/s|ø.*|schnitt|tore\/spiel|tore pro spiel)$/i],['saison','Saison',/saison|season|spielzeit/i]];
+const PDB_FIELDS=[['name','Name (komplett)',/^(spieler(name)?|name|spieler\/in|player)$/i],['vorname','Vorname',/vorname|first/i],['nachname','Nachname',/nachname|familienname|last|^name$/i],['team','Team / Verein',/team|verein|mannschaft|club/i],['spiele','Spiele',/^(spiele|sp\.?|einsätze|games|anz\.? spiele)$/i],['tore','Tore',/^(tore|tore gesamt|goals|t)$/i],['avg','Ø Tore pro Spiel',/^(t\/s|ø.*|schnitt|tore\/spiel|tore pro spiel)$/i],['saison','Saison',/saison|season|spielzeit/i]];
 function seasonFromFile(f){let m=/(?:^|\D)(20\d{2})\s*[-_\/]\s*(\d{2}|20\d{2})(?:\D|$)/.exec(f);if(m&&(+m[2].slice(-2))===(+m[1].slice(-2)+1)%100)return m[1]+'/'+m[2].slice(-2);
   m=/(?:^|\D)(\d{2})(\d{2})(?:\D|$)/.exec(f);if(m&&+m[2]===(+m[1]+1)%100)return '20'+m[1]+'/'+m[2];return '';}
 const cellNum=c=>c!==''&&c!=null&&!isNaN(+c);
@@ -2897,7 +2898,7 @@ function pdbImportTeams(){
   $('pi_season').onchange=()=>{I.season=$('pi_season').value;pdbImportTeams();};
   $('pi_single').onclick=()=>{I.mode='sheet';pdbImportSheet();};
   $('pi_go').onclick=()=>{const rec=seasonRec(I.season),now=Date.now();
-    for(const p of players){const q={name:p.name,team:p.team,nr:p.nr,spiele:p.spiele,tore:p.tore,g7:null,a7:null,pens:null,extra:p.extra,src:'Tabelle '+I.file,upd:now};rec.players[pkey(p.name)+'|'+normT(p.team||'')]=q;}
+    for(const p of players){const q={name:p.name,team:p.team,nr:p.nr,spiele:p.spiele,tore:p.tore,extra:p.extra,src:'Tabelle '+I.file,upd:now};rec.players[pkey(p.name)+'|'+normT(p.team||'')]=q;}
     if(I.season<seasonNow()&&!rec.closed){rec.closed=true;rec.archivedAt=now;}
     pdbSave();save();closeSheet();pdbImport=null;toast(`${players.length} Spieler für ${I.season} übernommen`);settings('pdb');};
 }
@@ -2909,10 +2910,10 @@ function pdbRowsFromImport(){
     let name=M.name!=null?String(cell('name')).trim():[String(cell('vorname')).trim(),String(cell('nachname')).trim()].filter(Boolean).join(' ');
     if(!name||/^(summe|gesamt|total|team|mannschaft)\b/i.test(name)||ptoks(name).length<2)continue;
     let g7=num(cell('g7')),a7=num(cell('a7'));const m7=String(cell('g7')).match(/^(\d+)\s*\/\s*(\d+)$/);if(m7){g7=+m7[1];a7=+m7[2];}
-    const extra={};if(I.extra)I.H.forEach((h,i)=>{if(mapped.has(i))return;const v=r[i];if(v!==''&&v!=null)extra[h]=typeof v==='number'?String(Math.round(v*100)/100).replace('.',','):String(v).trim();});
+    const extra={};if(I.extra)I.H.forEach((h,i)=>{if(mapped.has(i)||/7\s*m|2\s*min|zeitstraf|^#$|^(nr\.?|rückennummer|trikot)$/i.test(h))return;const v=r[i];if(v!==''&&v!=null)extra[h]=typeof v==='number'?String(Math.round(v*100)/100).replace('.',','):String(v).trim();});
     const season=(M.saison!=null&&normSeason(cell('saison')))||I.season;
     const tore=num(cell('tore')),avg=num(cell('avg'));let spiele=num(cell('spiele'));if(spiele==null&&tore&&avg)spiele=Math.round(tore/avg);
-    out.push({season,q:{name,team:(M.team!=null&&String(cell('team')).trim())||I.team||'',nr:null,spiele,tore,g7,a7,pens:num(cell('pens')),extra,src:'Tabelle '+I.file,upd:Date.now()}});}
+    out.push({season,q:{name,team:(M.team!=null&&String(cell('team')).trim())||I.team||'',nr:null,spiele,tore,extra,src:'Tabelle '+I.file,upd:Date.now()}});}
   return out;
 }
 
