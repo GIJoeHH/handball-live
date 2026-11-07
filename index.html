@@ -381,6 +381,8 @@ td.draw{color:var(--warn);font-weight:700}
 
 .pastearea{font:inherit;font-size:13px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px;width:100%;min-height:110px}
 .sched tr.future td{color:var(--ink)}
+
+select.mini{font:inherit;font-size:12px;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:7px;padding:4px 6px;min-height:30px}
 </style>
 
 </head>
@@ -550,7 +552,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='17';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='18';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1789,6 +1791,8 @@ function renderStats(){
   $('st_get').onclick=()=>fetchSheet();
   document.querySelectorAll('[data-ssub]').forEach(b=>b.onclick=()=>{statSub=b.dataset.ssub;renderStats();});
   if($('sch_own'))$('sch_own').onchange=()=>{schedOwn=$('sch_own').checked;renderStats();};
+  document.querySelectorAll('[data-setrd]').forEach(s=>s.onchange=()=>{const e=(leagueState().sched||{})[s.dataset.setrd];if(e&&s.value){e.round=+s.value;save();renderStats();}});
+  document.querySelectorAll('[data-cand]').forEach(b=>b.onclick=()=>candSheet(+b.dataset.cand));
   document.querySelectorAll('[data-steam]').forEach(b=>b.onclick=()=>{statTeam=statTeam===b.dataset.steam?null:b.dataset.steam;renderStats();});
   document.querySelectorAll('[data-adel]').forEach(b=>b.onclick=()=>{const i=+b.dataset.adel,g=S.archive[i];
     openSheet(head('Archiviertes Spiel löschen?')+`<p>${esc(g.nameH)} – ${esc(g.nameG)} (${esc(fmtDate(g.datum))}) wird mit allen Szenen gelöscht.</p><div class="row"><button class="tool danger" id="ad_yes">Löschen</button><button class="tool" data-close>Abbrechen</button></div>`);
@@ -1852,7 +1856,8 @@ function fetchSheet(){
       <input type="file" id="fx_hb" accept=".html,.htm,.webarchive,text/html" multiple>
       ${IS_WEBAPP?'<label class="check"><input type="checkbox" id="fx_logos" checked> Vereinslogos übernehmen</label>':''}<div id="fx_hbst" class="pending"></div></div>
     <div class="stepc"><b>Spielplan-Text einfügen</b><div class="pending">Auf der Teamseite von handball.net die Liste der Spiele markieren (alle Spiele sichtbar scrollen), kopieren und hier einfügen. Die App erkennt Datum, Uhrzeit, Paarung, Ergebnis und Status.</div>
-      <textarea id="fx_txt" class="pastearea" placeholder="Sa, 12.09.2026&#10;Oberliga männliche C-Jugend …&#10;BEENDET&#10;…"></textarea><div class="row"><button class="tool" id="fx_txtgo">Spielplan übernehmen</button></div><div id="fx_txtst" class="pending"></div></div>
+      <textarea id="fx_txt" class="pastearea" placeholder="Sa, 12.09.2026&#10;Oberliga männliche C-Jugend …&#10;BEENDET&#10;…"></textarea><div class="row"><label class="check">Spieltag <select id="fx_round" aria-label="Spieltag der eingefügten Spiele"><option value="">nicht angeben (Teamseite)</option>${Array.from({length:(L.rounds&&L.rounds.total)||18},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}</select></label><button class="tool" id="fx_txtgo">Spielplan übernehmen</button></div>
+      <div class="pending">Ganze Liga: auf der Ligaseite einen Spieltag wählen, Spiele kopieren, hier den Spieltag angeben und übernehmen. Für jeden Spieltag wiederholen.</div><div id="fx_txtst" class="pending"></div></div>
     ${hbGamesHTML()}
     <div class="stepc"><b><span class="stepn">1</span>Staffel auf handball.net öffnen</b>
       <label class="fl">Link zum Spielplan eurer Staffel (einmalig eintragen)<input type="url" id="fx_url" value="${esc(L.url)}" placeholder="https://www.handball.net/…"></label>
@@ -1868,8 +1873,8 @@ function fetchSheet(){
     <div class="row"><button class="tool" data-close>Fertig</button></div>`;
   openSheet(h);
   $('fx_url').onchange=()=>{L.url=$('fx_url').value.trim();save();fetchSheet();};
-  $('fx_txtgo').onclick=()=>{const list=parseTeamText($('fx_txt').value);if(!list.length){$('fx_txtst').innerHTML='<span class="err">Keine Spiele erkannt. Bitte die Liste mit Datum, Status und Teams kopieren.</span>';return;}
-    const r=applySched(list),done=list.filter(e=>e.finished).length;toast(`${list.length} Termine übernommen (${done} mit Ergebnis)`);fetchSheet();if(view==='statistik')renderStats();};
+  $('fx_txtgo').onclick=()=>{const list=parseTeamText($('fx_txt').value),rd=+$('fx_round').value||null;if(rd)list.forEach(e=>e.round=rd);if(!list.length){$('fx_txtst').innerHTML='<span class="err">Keine Spiele erkannt. Bitte die Liste mit Datum, Status und Teams kopieren.</span>';return;}
+    const r=applySched(list),done=list.filter(e=>e.finished).length;toast(`${list.length} Termine${rd?' von Spieltag '+rd:''} übernommen (${done} mit Ergebnis)`);$('fx_txt').value='';fetchSheet();if(view==='statistik')renderStats();};
   $('fx_hb').onchange=async ev=>{const files=[...ev.target.files];if(!files.length)return;const st=$('fx_hbst');const ids=new Set();let T=0,N=0,SC=0,bad=[];
     for(const f of files){try{const txt=new TextDecoder('utf-8').decode(await f.arrayBuffer());const P=parseHbnet(txt);
         if(!P||(!P.games.length&&!P.teams.length&&!(P.sched||[]).length)){bad.push(f.name);continue;}const r=applyHbnet(P,!!($('fx_logos')&&$('fx_logos').checked));if(P.sched&&P.sched.length){const q=applySched(P.sched);SC+=q.total;}P.games.forEach(g=>ids.add(g.id));T=Math.max(T,r.teams);N+=r.newOpp;}
@@ -2234,6 +2239,14 @@ function hbGamesHTML(){
       <td>${done?'<span class="st ok">eingelesen</span>':g.report?`<a class="mini linkbtn2" href="${esc(g.report)}" target="_blank" rel="noopener">Bericht öffnen</a>`:`<span class="pending">${g.finished?'kein Bericht':g.live?'nach Spielende':'noch nicht gespielt'}</span>`}</td></tr>`;}).join('')).join('')}
     </tbody></table></div>${guess.length?'<div class="pending">„vermutet“: handball.net nummeriert die Spiele fortlaufend, daraus leitet die App die Links der früheren Spieltage ab. Ob ein Link stimmt, zeigt das PDF oben bei „Spielnummer“. Ein falscher Treffer schadet nicht, weil die App jeden Bericht anhand seines Inhalts einordnet.</div>':''}</div>`;
 }
+function guessForRound(r){
+  const L=leagueState(),known=Object.values(L.games||{}).filter(g=>g.id&&g.code&&/\d{4}$/.test(g.code)&&g.report);if(!known.length)return[];
+  const a=known.reduce((m,g)=>g.round>m.round||(g.round===m.round&&g.order<m.order)?g:m,known[0]);
+  const N=Math.max(...Object.values(L.games).filter(g=>g.round===a.round).map(g=>g.order||0),5),p2=x=>String(x).padStart(2,'0');
+  const base=String(a.report).replace(/id_partido=\d+/,'id_partido='),prefix=a.code.slice(0,-4),out=[];
+  for(let o=1;o<=N;o++){const id=a.id+(r-a.round)*N+(o-a.order);if(id>0)out.push({id,round:r,order:o,code:prefix+p2(r)+p2(o),report:base+id});}
+  return out;
+}
 function guessedGames(G){
   const L=leagueState(),known=G.filter(g=>g.id&&g.code&&/\d{4}$/.test(g.code));if(!known.length)return[];
   const a=known.reduce((m,g)=>g.round>m.round||(g.round===m.round&&g.order<m.order)?g:m,known[0]);
@@ -2258,9 +2271,11 @@ function scheduleRows(){
     ex.rep=r;if(ex.hs==null){ex.hs=r.heim.gf;ex.as=r.heim.ga;}ex.h1=r.heim.h1f!=null?r.heim.h1f+':'+r.heim.h1a:null;ex.datum=r.datum;
     if(ex.src==='handball.net'&&(r.heim.gf!==g0(ex.hs)||r.heim.ga!==g0(ex.as)))ex.diff=`Spielbericht: ${r.heim.gf}:${r.heim.ga}`;rows.set(r.nr,ex);}
   for(const e of schedList()){const ex=[...rows.values()].find(r=>!r.guess&&matchTeam(r.home,e.home)&&matchTeam(r.away,e.away));
-    if(ex){if(!ex.date)ex.date=e.date;if(ex.hs==null&&e.hs!=null){ex.hs=e.hs;ex.as=e.as;ex.finished=true;}ex.comp=e.comp;}
-    else rows.set('plan|'+e.date+'|'+normT(e.home),{code:'',round:null,date:e.date,home:e.home,away:e.away,hs:e.hs,as:e.as,finished:e.finished,live:e.live,src:'Teamspielplan',comp:e.comp,cup:isCupComp(e.comp)});}
-  for(const g of guessedGames(Object.values(L.games||{})))if(!rows.has(g.code))rows.set(g.code,{code:g.code,round:g.round,order:g.order,guess:true,link:g.report});
+    const sk=Object.keys(L.sched||{}).find(k=>L.sched[k]===e);
+    if(ex){if(!ex.date)ex.date=e.date;if(ex.hs==null&&e.hs!=null){ex.hs=e.hs;ex.as=e.as;ex.finished=true;}ex.comp=e.comp;if(ex.round==null&&e.round)ex.round=e.round;if(!ex.sk)ex.sk=sk;}
+    else rows.set('plan|'+e.date+'|'+normT(e.home),{sk,code:'',round:e.round||null,date:e.date,home:e.home,away:e.away,hs:e.hs,as:e.as,finished:e.finished,live:e.live,src:'Teamspielplan',comp:e.comp,cup:isCupComp(e.comp)});}
+  const usedR=new Set([...rows.values()].map(r=>r.round).filter(Boolean));
+  for(const g of guessedGames(Object.values(L.games||{})))if(!rows.has(g.code)&&!usedR.has(g.round))rows.set(g.code,{code:g.code,round:g.round,order:g.order,guess:true,link:g.report});
   return[...rows.values()].sort((a,b)=>(a.round||99)-(b.round||99)||(a.order||0)-(b.order||0)||String(a.date||'').localeCompare(String(b.date||'')));
 }
 const g0=v=>v==null?null:+v;
@@ -2279,7 +2294,11 @@ function scheduleHTML(){
   for(const gr of groups){if(gr.label)h+=`<tr class="rdh${gr.cur?' cur':''}"><td colspan="7">${gr.label}</td></tr>`;
     for(const r of gr.items){const rd=r.round;const res=r.hs!=null&&r.as!=null?`${r.hs}:${r.as}`:'',us=mine(r);
       let out='';if(us&&res){const a=isOurTeam(r.home)?r.hs:r.as,b=isOurTeam(r.home)?r.as:r.hs;out=a>b?'win':a<b?'loss':'draw';}
-      const rep=r.rep?'<span class="st ok">eingelesen</span>':r.link?`<a class="mini linkbtn2" href="${esc(r.link)}" target="_blank" rel="noopener">Bericht öffnen</a>${r.guess?' <span class="st">vermutet</span>':''}`:`<span class="pending">${r.live?'läuft':r.finished?'kein Bericht':'offen'}</span>`;
+      const canGuess=Object.values(L.games||{}).some(g=>g.report);
+      const rep=r.rep?'<span class="st ok">✓ eingelesen</span>':r.link?`<a class="mini linkbtn2" href="${esc(r.link)}" target="_blank" rel="noopener">Bericht öffnen</a>${r.guess?' <span class="st">vermutet</span>':''}`
+        :r.finished&&r.round&&canGuess?`<button class="mini" data-cand="${r.round}">Bericht suchen</button>`
+        :r.finished&&r.sk&&canGuess&&!r.cup?`<select class="mini" data-setrd="${esc(r.sk)}" aria-label="Spieltag wählen"><option value="">ST wählen</option>${Array.from({length:(L.rounds&&L.rounds.total)||18},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}</select>`
+        :`<span class="pending">${r.live?'läuft':r.finished?'kein Bericht':'offen'}</span>`;
       h+=r.guess&&!r.rep?`<tr class="guess"><td class="num">${rd}</td><td colspan="5" class="pending">Spiel ${esc(String(r.order).padStart(2,'0'))} · Spielnummer ${esc(r.code)} · Paarung noch unbekannt</td><td>${rep}</td></tr>`
         :`<tr class="${us?'ours':''}${r.date&&!r.finished&&new Date(r.date)>now&&!gr.label?' future':''}"><td class="num">${rd||'–'}${r.cup?' <span class="st">Pokal</span>':''}</td><td class="num">${r.date?esc(gameDate(r.date)):esc(r.datum||'')}</td><td>${logoImg(r.home,'sm')}${esc(r.home||'')}</td><td>${logoImg(r.away,'sm')}${esc(r.away||'')}</td>
           <td class="r num ${out}">${res}${r.live?' <span class="st diff">läuft</span>':''}${r.diff?` <span class="st diff" title="${esc(r.diff)}">≠</span>`:''}</td><td class="r num">${r.h1?esc(r.h1):''}</td><td>${rep}</td></tr>`;}}
@@ -2396,6 +2415,15 @@ function applySched(list){
 }
 const schedList=()=>Object.values(leagueState().sched||{});
 const isCupComp=c=>/POKAL|CUP/i.test(c||'');
+
+function candSheet(r){
+  const L=leagueState(),have=new Set(Object.values(L.reports||{}).map(x=>x.nr)),C=guessForRound(r);
+  openSheet(head('Spielbericht suchen · Spieltag '+r)+`<p class="pending">Für Spieltag ${r} kennt die App die Spielnummern, aber nicht, welche Nummer zu welcher Paarung gehört. Öffne die Links nacheinander und lade die Berichte. Beim Einlesen ordnet die App jeden Bericht anhand seines Inhalts der richtigen Paarung zu.</p>
+    <div class="tw"><table><thead><tr><th>Spielnummer</th><th>Spielbericht</th></tr></thead><tbody>${C.map(c=>{const rp=Object.values(L.reports||{}).find(x=>x.nr===c.code);
+      return `<tr><td class="num">${esc(c.code)}</td><td>${rp?`<span class="st ok">✓ eingelesen</span> ${esc(rp.heim.team)} – ${esc(rp.gast.team)}`:`<a class="mini linkbtn2" href="${esc(c.report)}" target="_blank" rel="noopener">Bericht öffnen</a> <span class="st">vermutet</span>`}</td></tr>`;}).join('')}</tbody></table></div>
+    <div class="row"><button class="tool primary" id="cs_imp">Berichte einlesen</button><button class="tool" data-close>Schließen</button></div>`);
+  $('cs_imp').onclick=()=>{closeSheet();fetchSheet();setTimeout(()=>{const f=$('fx_files');if(f)f.scrollIntoView({block:'center'});},50);};
+}
 
 S=load();
 if(!S){S=fresh();loadDemo();}
