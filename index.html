@@ -592,7 +592,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='34';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='35';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -2783,7 +2783,7 @@ function openPlayer(name,team){
   let h=head(esc(name));
   h+=`<h3>Saison ${esc(now)} · Liga laut Spielberichten</h3>`+(cur.length?playerRowsHTML(cur.map(q=>({...q,src:'Spielberichte'})),false):'<p class="pending">In dieser Saison noch in keinem eingelesenen Spielbericht der Liga.</p>');
   if(!cur.length)h+=`<div class="find info"><span>Werte aus früheren Saisons werden nur angezeigt, wenn der Spieler in dieser Saison in der Liga spielt, also in einem Spielbericht dieser Saison steht.${hist.length?` Für diesen Namen ${hist.length===1?'liegt 1 älterer Eintrag':'liegen '+hist.length+' ältere Einträge'} vor.`:''}</span></div>`;
-  else h+=`<h3>Frühere Saisons</h3>`+(hist.length?playerRowsHTML(hist,true):'<p class="pending">Keine älteren Werte in der Spielerdatenbank. Tabellen früherer Saisons lassen sich unter Einstellungen → Spielerdatenbank einlesen.</p>');
+  else h+=`<h3>Frühere Saisons</h3>`+(hist.length?playerRowsHTML(hist,true):`<p class="pending">Keine älteren Werte in der Spielerdatenbank.${cur.every(q=>!q.tore)?' Torhüter fehlen in Torschützen-Tabellen meistens, weil sie keine Tore werfen.':''} Tabellen früherer Saisons lassen sich unter Einstellungen → Spielerdatenbank einlesen.</p>`);
   h+=`<p class="pending">Zuordnung über den Namen (Vor- und Nachname, Reihenfolge egal, abgekürzte Nachnamen werden mit „als …“ gekennzeichnet). Falsche Einträge aus Tabellen lassen sich mit × löschen. Alle Werte bleiben auf diesem Gerät und in eurer Sync-Datei.</p>`;
   openSheet(h);
   $('sheet').querySelectorAll('[data-pdbrm]').forEach(b=>b.onclick=ev=>{ev.stopPropagation();const v=b.dataset.pdbrm,i=v.indexOf('|'),s=v.slice(0,i),k=v.slice(i+1),rec=pdb().seasons[s];if(!rec||!rec.players[k])return;
@@ -2841,11 +2841,12 @@ function teamSheetPlayers(wb){
       if(x){x.cells=x.cells.map((c,i)=>cellNum(c)&&cellNum(cells[i])?+c+ +cells[i]:cellNum(c)?c:cells[i]);x.tore+=cellNum(r[ti])?+r[ti]:0;x.avg=null;x.share=cellNum(r[ti+2])&&x.share!=null?x.share+ +r[ti+2]:null;for(const v of ns)if(!x.ns.includes(v))x.ns.push(v);}
       else raw.set(k,{name,ns:[...ns],cells,tore:cellNum(r[ti])?+r[ti]:null,avg:cellNum(r[ti+1])?+r[ti+1]:null,share:cellNum(r[ti+2])?+r[ti+2]:null});}
     const P=[];for(const x of raw.values()){const played=x.cells.filter(cellNum).map(Number),tore=x.tore!=null?x.tore:played.reduce((s,v)=>s+v,0);
-      if(!played.length&&!tore)continue;
+      if(!played.length&&!tore&&x.tore==null)continue;
       const sumOf=L=>L.filter(cellNum).reduce((s,v)=>s+ +v,0),extra={};
       if(split<G.length&&played.length){extra['Hinrunde']=String(sumOf(x.cells.slice(0,split)));extra['Rückrunde']=String(sumOf(x.cells.slice(split)));}
       if(played.length)extra['Bestes Spiel']=String(Math.max(...played));
       if(x.share!=null&&x.share<=1)extra['Anteil Teamtore']=Math.round(x.share*100)+' %';
+      if(!played.length&&!tore)extra['Hinweis']='ohne Tor, Einsätze nicht erfasst (z. B. Torhüter)';
       P.push({name:x.name,nr:null,spiele:played.length||(x.avg?Math.round(tore/x.avg):null),tore,cells:x.cells,extra});}
     if(!P.length)continue;
     const emptyIn=(a,b)=>{const L=[];for(let i=a;i<b;i++){const hh=H[G[i]];if(/^gegner\s*\d+$/i.test(hh))continue;if(P.every(p=>!cellNum(p.cells[i])))L.push(hh);}return L;};
