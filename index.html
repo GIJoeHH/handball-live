@@ -330,6 +330,10 @@ td.win{color:var(--good);font-weight:700} td.loss{color:var(--def);font-weight:7
 
 .keep.fix{border:2px solid var(--warn-line);background:var(--warn-bg);color:var(--warn);border-style:solid}
 .keep.sw{border-style:solid}
+
+.brandlogo{display:flex;align-items:center;justify-content:center;height:46px;width:56px;flex:none}
+.brandlogo img{max-height:46px;max-width:56px;width:auto;height:auto;object-fit:contain;display:block}
+@media (max-width:640px){.brandlogo{height:38px;width:44px}.brandlogo img{max-height:38px;max-width:44px}}
 </style>
 
 </head>
@@ -346,6 +350,7 @@ window.hbHardReload=async function(){
 </script>
 <div class="app" id="app">
   <nav class="nav" aria-label="Bereiche">
+    <span class="brandlogo" id="brandLogo" hidden></span>
     <a href="#vorbereitung" class="navtab" data-view="vorbereitung"><span class="step">1</span>Vorbereitung</a>
     <a href="#erfassen" class="navtab" data-view="erfassen"><span class="step">2</span>Spiel erfassen</a>
     <a href="#analyse" class="navtab" data-view="analyse"><span class="step">3</span>Analyse</a>
@@ -495,7 +500,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='8';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='9';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -702,6 +707,7 @@ function render(){
   const sc0=score();$('navMeta').textContent=`${S.cfg.nameH} ${sc0.h}:${sc0.g} ${S.cfg.nameG}`;
   $('demoNote').hidden=!S.demo;
   renderTeamSel();
+  {const u=logoFor(S.cfg.nameH),bl=$('brandLogo');bl.hidden=!u;bl.innerHTML=u?`<img src="${u}" alt="Logo ${esc(S.cfg.nameH)}">`:'';}
   const vtxt='Version '+APP_VERSION+' · '+(STANDALONE?'App':'Browser');$('appVer').textContent=vtxt;$('footVer').textContent=vtxt;
   if(view==='vorbereitung')renderPrep();else if(view==='analyse')renderAna();else if(view==='statistik')renderStats();else if(view==='einstellungen')renderSettings();else renderLive();
   keepAwake();
@@ -1831,8 +1837,8 @@ function logoPicker(name,id){const u=logoFor(name);
   return `<span class="logopick">${u?`<img class="logo md" src="${u}" alt="Logo ${esc(name)}">`:'<span class="logo md ph" aria-hidden="true">?</span>'}
     <label class="mini filelbl">${u?'ändern':'Logo'}<input type="file" accept="image/*" data-logo="${esc(name)}" id="${id}"></label>${u?`<button class="mini" data-logodel="${esc(name)}" aria-label="Logo entfernen">×</button>`:''}</span>`;}
 function bindLogos(root,after){
-  root.querySelectorAll('[data-logo]').forEach(inp=>inp.onchange=async()=>{const f=inp.files[0];if(!f)return;try{const url=await readLogo(f);if(setLogo(inp.dataset.logo,url))toast('Logo gespeichert');}catch(e){toast(e.message);}after();});
-  root.querySelectorAll('[data-logodel]').forEach(b=>b.onclick=()=>{setLogo(b.dataset.logodel,null);toast('Logo entfernt');after();});
+  root.querySelectorAll('[data-logo]').forEach(inp=>inp.onchange=async()=>{const f=inp.files[0];if(!f)return;try{const url=await readLogo(f);if(setLogo(inp.dataset.logo,url))toast('Logo gespeichert');}catch(e){toast(e.message);}setTimeout(()=>render(),0);});
+  root.querySelectorAll('[data-logodel]').forEach(b=>b.onclick=()=>{setLogo(b.dataset.logodel,null);toast('Logo entfernt');setTimeout(()=>render(),0);});
 }
 function teamsHTML(){
   const I=ensureIndex();
