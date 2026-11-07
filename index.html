@@ -365,6 +365,8 @@ td.win{color:var(--good);font-weight:700} td.loss{color:var(--def);font-weight:7
 .hbg tr.ours td{font-weight:700}
 .hbg tr.ours td:first-child{box-shadow:inset 4px 0 0 var(--att)}
 .nextg{margin-top:4px;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+
+.hbg tr.guess td{color:var(--muted)}
 </style>
 
 </head>
@@ -534,7 +536,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='13';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='14';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -2144,8 +2146,8 @@ function parseHbnet(txt){
   const m=/<script[^>]*id="serverApp-state"[^>]*>([\s\S]*?)<\/script>/.exec(txt)||/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/.exec(txt);
   if(!m)return null;let data=null;
   try{data=JSON.parse(m[1]);}catch(e){try{const t=document.createElement('textarea');t.innerHTML=m[1];data=JSON.parse(t.value);}catch(e2){return null;}}
-  const games={},teams={};let phase=null;
-  const walk=o=>{if(Array.isArray(o)){o.forEach(walk);return;}if(!o||typeof o!=='object')return;
+  const games={},teams={};let phase=null,rounds=null;
+  const walk=o=>{if(Array.isArray(o)){if(o.length&&o.every(x=>x&&typeof x==='object'&&typeof x.round==='number'&&'current' in x)){const c=o.find(x=>x.current);rounds={total:o.length,current:c?c.round:null};}o.forEach(walk);return;}if(!o||typeof o!=='object')return;
     if(typeof o.code==='string'&&o.round!=null&&o.local&&o.visitor&&o.id){games[o.id]=o;if(o.phase&&o.phase.name)phase=o.phase;}
     for(const k in o)walk(o[k]);};
   walk(data);
@@ -2161,12 +2163,12 @@ function parseHbnet(txt){
   return{games:Object.values(games).map(g=>({id:g.id,code:g.code,round:g.round,order:g.order,date:g.date,home:g.local.name,away:g.visitor.name,
       hs:g.result?g.result.local:null,as:g.result?g.result.visitor:null,status:(g.status||{}).short_name||'',finished:!!(g.status||{}).is_finished,live:!!(g.status||{}).is_live,
       report:g.report||null,field:g.field&&g.field.name||''})),
-    teams:Object.values(teams),phase:phase?{name:phase.name,id:phase.id}:null,league:canon?canon.replace(/&amp;/g,'&'):null};
+    teams:Object.values(teams),rounds,phase:phase?{name:phase.name,id:phase.id}:null,league:canon?canon.replace(/&amp;/g,'&'):null};
 }
 function applyHbnet(P,withLogos){
   const L=leagueState();L.games=L.games||{};
   for(const g of P.games)L.games[g.id]=Object.assign(L.games[g.id]||{},g);
-  if(P.league&&/\/ligen\//.test(P.league)&&!L.url)L.url=P.league;if(P.phase)L.name=P.phase.name;
+  if(P.league&&/\/ligen\//.test(P.league)&&!L.url)L.url=P.league;if(P.rounds&&P.rounds.total)L.rounds=P.rounds;if(P.phase)L.name=P.phase.name;
   let own=null,newOpp=0;
   for(const t of P.teams){
     if(isOurTeam(t.name)){own=t;if(!linksOf().team)linksOf().team=t.url;}
@@ -2179,15 +2181,29 @@ const gameDate=d=>{try{return new Date(d).toLocaleString('de-DE',{weekday:'short
 function hbGamesHTML(){
   const L=leagueState(),G=Object.values(L.games||{});if(!G.length)return '';
   const have=new Set(Object.values(L.reports||{}).map(r=>r.nr));
-  const open=G.filter(g=>g.finished&&g.report&&!have.has(g.code)).length;
-  const rounds=[...new Set(G.map(g=>g.round))].sort((a,b)=>b-a);
+  const guess=guessedGames(G),all=G.concat(guess);
+  const open=G.filter(g=>g.finished&&g.report&&!have.has(g.code)).length+guess.filter(g=>!have.has(g.code)).length;
+  const rounds=[...new Set(all.map(g=>g.round))].sort((a,b)=>b-a);
   return `<div class="stepc"><b>Spiele von handball.net</b><div class="pending">${G.length} Spiele aus gesicherten Seiten · <b>${open} Spielbericht${open===1?'':'e'} noch nicht eingelesen</b>. Tippe auf „Bericht“, lade das PDF und lies es unten in Schritt 3 ein.</div>
     <div class="tw"><table class="hbg"><thead><tr><th>ST</th><th>Datum</th><th>Paarung</th><th class="r">Ergebnis</th><th>Spielbericht</th></tr></thead><tbody>
-    ${rounds.map(r=>G.filter(g=>g.round===r).sort((a,b)=>(a.order||0)-(b.order||0)).map(g=>{const done=have.has(g.code),ours=isOurTeam(g.home)||isOurTeam(g.away);
+    ${rounds.map(r=>all.filter(g=>g.round===r).sort((a,b)=>(a.order||0)-(b.order||0)).map(g=>{const done=have.has(g.code),ours=isOurTeam(g.home)||isOurTeam(g.away);
+      if(g.guess){const rep=Object.values(L.reports||{}).find(x=>x.nr===g.code);return `<tr class="guess"><td class="num">${g.round}</td><td class="num">Spiel ${esc(g.code.slice(-2))}</td><td>${rep?esc(rep.heim.team)+' – '+esc(rep.gast.team):'<span class="pending">Spielnummer '+esc(g.code)+'</span>'}</td><td class="r num">${rep?rep.heim.gf+':'+rep.heim.ga:''}</td>
+        <td>${done?'<span class="st ok">eingelesen</span>':`<a class="mini linkbtn2" href="${esc(g.report)}" target="_blank" rel="noopener">Bericht öffnen</a> <span class="st">vermutet</span>`}</td></tr>`;}
       return `<tr class="${ours?'ours':''}"><td class="num">${g.round}</td><td class="num">${esc(gameDate(g.date))}</td><td>${logoImg(g.home,'sm')}${esc(g.home)} – ${esc(g.away)}${logoImg(g.away,'sm')}</td>
       <td class="r num">${g.hs!=null&&g.as!=null?g.hs+':'+g.as:''}${g.live?' <span class="st diff">läuft</span>':''}</td>
       <td>${done?'<span class="st ok">eingelesen</span>':g.report?`<a class="mini linkbtn2" href="${esc(g.report)}" target="_blank" rel="noopener">Bericht öffnen</a>`:`<span class="pending">${g.finished?'kein Bericht':g.live?'nach Spielende':'noch nicht gespielt'}</span>`}</td></tr>`;}).join('')).join('')}
-    </tbody></table></div></div>`;
+    </tbody></table></div>${guess.length?'<div class="pending">„vermutet“: handball.net nummeriert die Spiele fortlaufend, daraus leitet die App die Links der früheren Spieltage ab. Ob ein Link stimmt, zeigt das PDF oben bei „Spielnummer“. Ein falscher Treffer schadet nicht, weil die App jeden Bericht anhand seines Inhalts einordnet.</div>':''}</div>`;
+}
+function guessedGames(G){
+  const L=leagueState(),known=G.filter(g=>g.id&&g.code&&/\d{4}$/.test(g.code));if(!known.length)return[];
+  const a=known.reduce((m,g)=>g.round>m.round||(g.round===m.round&&g.order<m.order)?g:m,known[0]);
+  const N=Math.max(...known.filter(g=>g.round===a.round).map(g=>g.order||0),Math.floor(((L.rounds&&L.rounds.total)?(L.rounds.total/2+1):10)/2));
+  const prefix=a.code.slice(0,-4),cur=(L.rounds&&L.rounds.current)||Math.max(...known.map(g=>g.round)),haveR=new Set(known.map(g=>g.round)),out=[];
+  const p2=x=>String(x).padStart(2,'0'),base=String(a.report||'').replace(/id_partido=\d+/,'id_partido=');
+  if(!/id_partido=$/.test(base))return[];
+  for(let r=1;r<cur;r++){if(haveR.has(r))continue;for(let o=1;o<=N;o++){const id=a.id+(r-a.round)*N+(o-a.order);if(id<=0)continue;
+    out.push({guess:true,id,round:r,order:o,code:prefix+p2(r)+p2(o),report:base+id});}}
+  return out;
 }
 function nextOwnGame(){const G=Object.values(leagueState().games||{}).filter(g=>!g.finished&&(isOurTeam(g.home)||isOurTeam(g.away))).sort((a,b)=>String(a.date).localeCompare(String(b.date)));return G[0]||null;}
 function prepareOpponent(name){
