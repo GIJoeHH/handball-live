@@ -562,7 +562,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='22';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='23';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -2253,8 +2253,9 @@ function hbGamesHTML(){
       if(g.guess){const rep=Object.values(L.reports||{}).find(x=>x.nr===g.code);return `<tr class="guess"><td class="num">${g.round}</td><td class="num">Spiel ${esc(g.code.slice(-2))}</td><td>${rep?esc(rep.heim.team)+' – '+esc(rep.gast.team):'<span class="pending">Spielnummer '+esc(g.code)+'</span>'}</td><td class="r num">${rep?rep.heim.gf+':'+rep.heim.ga:''}</td>
         <td>${done?'<span class="st ok">eingelesen</span>':`<a class="mini linkbtn2" href="${esc(g.report)}" target="_blank" rel="noopener">Bericht öffnen</a> <span class="st">vermutet</span>`}</td></tr>`;}
       return `<tr class="${ours?'ours':''}"><td class="num">${g.round}</td><td class="num">${esc(gameDate(g.date))}</td><td>${logoImg(g.home,'sm')}${esc(g.home)} – ${esc(g.away)}${logoImg(g.away,'sm')}</td>
-      <td class="r num">${g.hs!=null&&g.as!=null?g.hs+':'+g.as:''}${g.live?' <span class="st diff">läuft</span>':''}</td>
-      <td>${done?'<span class="st ok">eingelesen</span>':g.report?`<a class="mini linkbtn2" href="${esc(g.report)}" target="_blank" rel="noopener">Bericht öffnen</a>`:`<span class="pending">${g.finished?'kein Bericht':g.live?'nach Spielende':'noch nicht gespielt'}</span>`}</td></tr>`;}).join('')).join('')}
+      ${(()=>{const rp=done?Object.values(L.reports||{}).find(x=>x.nr===g.code):null,lv=!rp&&liveNow(g),st=!rp&&!lv&&g.live&&!g.finished;
+        return `<td class="r num">${rp?rp.heim.gf+':'+rp.heim.ga:st?'':(g.hs!=null&&g.as!=null?g.hs+':'+g.as:'')}${lv?' <span class="st diff">läuft</span>':''}</td>`;})()}
+      <td>${done?'<span class="st ok">eingelesen</span>':g.report?`<a class="mini linkbtn2" href="${esc(g.report)}" target="_blank" rel="noopener">Bericht öffnen</a>`:`<span class="pending">${g.finished?'kein Bericht':liveNow(g)?'nach Spielende':g.live?'Ergebnis fehlt':'noch nicht gespielt'}</span>`}</td></tr>`;}).join('')).join('')}
     </tbody></table></div>${guess.length?'<div class="pending">„vermutet“: handball.net nummeriert die Spiele fortlaufend, daraus leitet die App die Links der früheren Spieltage ab. Ob ein Link stimmt, zeigt das PDF oben bei „Spielnummer“. Ein falscher Treffer schadet nicht, weil die App jeden Bericht anhand seines Inhalts einordnet.</div>':''}</div>`;
 }
 function guessForRound(r){
@@ -2284,10 +2285,12 @@ function codeRound(code){const m=/(\d{2})(\d{2})$/.exec(code||'');return m?{roun
 function officialResults(){const o={};for(const g of Object.values(leagueState().games||{}))if(g.finished&&g.hs!=null&&g.as!=null)o[g.code]=g;return o;}
 function scheduleRows(){
   const L=leagueState(),rows=new Map();
-  for(const g of Object.values(L.games||{}))rows.set(g.code,{code:g.code,round:g.round,order:g.order,date:g.date,home:g.home,away:g.away,hs:g.hs,as:g.as,finished:g.finished,live:g.live,link:g.report,field:g.field,src:'handball.net'});
+  for(const g of Object.values(L.games||{})){const lv=liveNow(g),stale=!g.finished&&!lv&&g.live;
+    rows.set(g.code,{code:g.code,round:g.round,order:g.order,date:g.date,home:g.home,away:g.away,hs:stale?null:g.hs,as:stale?null:g.as,finished:g.finished||stale,stale,live:lv,link:g.report,field:g.field,src:'handball.net'});}
   for(const r of Object.values(L.reports||{})){const cr=codeRound(r.nr)||{};const ex=rows.get(r.nr)||{code:r.nr,round:r.spieltag||cr.round,order:cr.order,date:null,home:r.heim.team,away:r.gast.team,finished:true,src:'Spielbericht'};
-    ex.rep=r;if(ex.hs==null){ex.hs=r.heim.gf;ex.as=r.heim.ga;}ex.h1=r.heim.h1f!=null?r.heim.h1f+':'+r.heim.h1a:null;ex.datum=r.datum;
-    if(ex.src==='handball.net'&&(r.heim.gf!==g0(ex.hs)||r.heim.ga!==g0(ex.as)))ex.diff=`Spielbericht: ${r.heim.gf}:${r.heim.ga}`;rows.set(r.nr,ex);}
+    const offFin=ex.src==='handball.net'&&rows.has(r.nr)&&ex.finished&&!ex.stale;
+    ex.rep=r;if(!offFin||ex.hs==null){ex.hs=r.heim.gf;ex.as=r.heim.ga;}ex.finished=true;ex.live=false;ex.stale=false;ex.h1=r.heim.h1f!=null?r.heim.h1f+':'+r.heim.h1a:null;ex.datum=r.datum;
+    if(offFin&&(r.heim.gf!==g0(ex.hs)||r.heim.ga!==g0(ex.as)))ex.diff=`Spielbericht: ${r.heim.gf}:${r.heim.ga}`;rows.set(r.nr,ex);}
   for(const e of schedList()){const ex=[...rows.values()].find(r=>!r.guess&&matchTeam(r.home,e.home)&&matchTeam(r.away,e.away));
     const sk=Object.keys(L.sched||{}).find(k=>L.sched[k]===e);
     if(ex){if(!ex.date)ex.date=e.date;if(ex.hs==null&&e.hs!=null){ex.hs=e.hs;ex.as=e.as;ex.finished=true;}ex.comp=e.comp;if(ex.round==null&&e.round)ex.round=e.round;if(!ex.sk)ex.sk=sk;}
@@ -2317,7 +2320,7 @@ function scheduleHTML(){
         :r.round&&canGuess?RL(r)
         :r.finished&&r.round?'<span class="pending" title="Unter Daten holen einmal die gesicherte Ligaseite einlesen">Link: Ligaseite einlesen</span>'
         :r.finished&&r.sk&&!r.cup?'<span class="pending">Spieltag links wählen</span>':false?`<select class="mini" data-setrd="${esc(r.sk)}" aria-label="Spieltag wählen"><option value="">ST wählen</option>${Array.from({length:(L.rounds&&L.rounds.total)||18},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}</select>`
-        :`<span class="pending">${r.live?'läuft':r.finished?'kein Bericht':'offen'}</span>`;
+        :`<span class="pending">${r.live?'läuft':r.stale?'Ergebnis fehlt':r.finished?'kein Bericht':'offen'}</span>`;
       h+=r.guess&&!r.rep?`<tr class="guess"><td class="num">${rd}</td><td colspan="5" class="pending">Spiel ${esc(String(r.order).padStart(2,'0'))} · Spielnummer ${esc(r.code)} · Paarung noch unbekannt</td><td>${rep}</td></tr>`
         :`<tr class="${us?'ours':''}${r.date&&!r.finished&&new Date(r.date)>now&&!gr.label?' future':''}"><td class="num">${r.sk&&!r.cup?`<select class="mini stsel" data-setrd="${esc(r.sk)}" aria-label="Spieltag">${['',...Array.from({length:(L.rounds&&L.rounds.total)||18},(_,k)=>k+1)].map(v=>`<option value="${v}"${(rd||'')===v?' selected':''}>${v||'–'}</option>`).join('')}</select>`:(rd||'–')}${r.cup?' <span class="st">Pokal</span>':''}</td><td class="num">${r.date?esc(gameDate(r.date)):esc(r.datum||'')}</td><td>${logoImg(r.home,'sm')}${esc(r.home||'')}</td><td>${logoImg(r.away,'sm')}${esc(r.away||'')}</td>
           <td class="r num ${out}">${res}${r.live?' <span class="st diff">läuft</span>':''}${r.diff?` <span class="st diff" title="${esc(r.diff)}">≠</span>`:''}</td><td class="r num">${r.h1?esc(r.h1):''}</td><td><span class="lastc">${rep}${r.sk?`<button class="mini x" data-delsk="${esc(r.sk)}" aria-label="Termin löschen" title="Termin löschen">×</button>`:''}</span></td></tr>`;}}
@@ -2501,6 +2504,8 @@ function reportLinks(R){
     if(!free.length)return '<span class="pending">–</span>';
     return `<span class="cands" title="Eine dieser Spielnummern gehört zu diesem Spiel. Beim Einlesen ordnet die App den Bericht richtig zu.">Bericht ${free.map(c=>`<a class="mini linkbtn2 cnum" href="${esc(c.report)}" target="_blank" rel="noopener" aria-label="Spielnummer ${esc(c.code)}">${c.order}</a>`).join('')}</span>`;};
 }
+
+function liveNow(g){if(!g||!g.live||g.finished)return false;const t=new Date(g.date).getTime();return !isNaN(t)&&Date.now()-t<3*36e5&&Date.now()>=t-15*6e4;}
 
 S=load();
 if(!S){S=fresh();loadDemo();}
