@@ -1,6 +1,6 @@
 /* Handball Live – Service Worker für den Offline-Betrieb.
    VERSION bei jeder Änderung an index.html erhöhen, damit die iPads die neue Fassung laden. */
-const VERSION = 'v12';
+const VERSION = 'v13';
 const CACHE = 'handball-live-' + VERSION;
 const CORE = ['./', './index.html', './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png'];
 const PDFJS = ['https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'];
@@ -29,7 +29,7 @@ self.addEventListener('fetch', e => {
     return;
   }
   // Eigene Dateien, Schriften und PDF-Leser: Cache zuerst, im Hintergrund auffrischen
-  const cacheable = url.origin === location.origin || url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com' || url.hostname === 'cdnjs.cloudflare.com';
+  const cacheable = url.origin === location.origin || url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com' || url.hostname === 'cdnjs.cloudflare.com' || url.hostname === 'handball360.isquad.de';
   if (!cacheable) return;
   e.respondWith(caches.open(CACHE).then(async c => {
     const hit = await c.match(req);

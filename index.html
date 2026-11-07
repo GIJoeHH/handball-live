@@ -361,6 +361,10 @@ td.win{color:var(--good);font-weight:700} td.loss{color:var(--def);font-weight:7
 .cloud.ok{color:var(--good)}
 #sy_dev{font:inherit;font-weight:700;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:4px 6px;width:100%}
 .updbar .x{background:transparent;border:1px solid rgba(255,255,255,.5)}
+
+.hbg tr.ours td{font-weight:700}
+.hbg tr.ours td:first-child{box-shadow:inset 4px 0 0 var(--att)}
+.nextg{margin-top:4px;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 </style>
 
 </head>
@@ -530,7 +534,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='12';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='13';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -642,7 +646,7 @@ function deleteTeam(id){if(id===S.teamId)return;localStorage.removeItem(TKEY(id)
 let LOGO={};try{LOGO=JSON.parse(localStorage.getItem(LOGOS)||'{}')||{};}catch(e){LOGO={};}
 function logoSave(){try{localStorage.setItem(LOGOS,JSON.stringify(LOGO));return true;}catch(e){toast('Logo nicht gespeichert: Speicher voll?');return false;}}
 function logoFor(name){if(!name)return null;const k=normT(name);if(LOGO[k])return LOGO[k];for(const kk in LOGO)if(matchTeam(kk,name))return LOGO[kk];return null;}
-function logoImg(name,cls){const u=logoFor(name);return u?`<img class="logo ${cls||''}" src="${u}" alt="">`:'';}
+function logoImg(name,cls){const u=logoFor(name);return u?`<img class="logo ${cls||''}" src="${u}" alt="" onerror="this.remove()">`:'';}
 function setLogo(name,url){const k=normT(name);for(const kk in LOGO)if(kk!==k&&matchTeam(kk,name))delete LOGO[kk];if(url)LOGO[k]=url;else delete LOGO[k];return logoSave();}
 function readLogo(file){return new Promise((res,rej)=>{const u=URL.createObjectURL(file),img=new Image();img.onload=()=>{const M=160,sc=Math.min(1,M/Math.max(img.width,img.height));
   const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*sc));c.height=Math.max(1,Math.round(img.height*sc));c.getContext('2d').drawImage(img,0,0,c.width,c.height);
@@ -753,7 +757,7 @@ function render(){
   const sc0=score();$('navMeta').textContent=`${S.cfg.nameH} ${sc0.h}:${sc0.g} ${S.cfg.nameG}`;
   $('demoNote').hidden=!S.demo;
   renderTeamSel();try{renderCloud();}catch(e){}
-  {const u=logoFor(S.cfg.nameH),bl=$('brandLogo');bl.hidden=!u;bl.innerHTML=u?`<img src="${u}" alt="Logo ${esc(S.cfg.nameH)}">`:'';}
+  {const u=logoFor(S.cfg.nameH),bl=$('brandLogo');bl.hidden=!u;bl.innerHTML=u?`<img src="${u}" alt="" onerror="this.parentNode.hidden=true">`:'';}
   const vtxt='Version '+APP_VERSION+' · '+(STANDALONE?'App':'Browser');$('appVer').textContent=vtxt;$('footVer').textContent=vtxt;
   if(view==='vorbereitung')renderPrep();else if(view==='analyse')renderAna();else if(view==='statistik')renderStats();else if(view==='einstellungen')renderSettings();else renderLive();
   keepAwake();
@@ -1733,7 +1737,8 @@ function renderStats(){
   const klasse=(reps.find(r=>r.klasse)||{}).klasse||'';const maxDay=Math.max(0,...reps.map(r=>r.spieltag||0));
   let h=`<section class="card anahead"><div><h2 class="ch">Statistik${klasse?' · '+esc(klasse):''}</h2>
     <div class="pending">${reps.length} Spielbericht${reps.length===1?'':'e'} · ${T.length} Teams${maxDay?' · bis Spieltag '+maxDay:''}${L.updated?' · zuletzt ergänzt am '+new Date(L.updated).toLocaleDateString('de-DE'):''}</div>
-    <div class="pending">Eigene App-Daten: ${games.length} Spiel${games.length===1?'':'e'}${(S.archive||[]).length?' im Archiv':''}</div></div>
+    <div class="pending">Eigene App-Daten: ${games.length} Spiel${games.length===1?'':'e'}${(S.archive||[]).length?' im Archiv':''}</div>
+    ${(()=>{const g=nextOwnGame();if(!g)return '';const opp=isOurTeam(g.home)?g.away:g.home;return `<div class="nextg">Nächstes Spiel: <b>${esc(gameDate(g.date))}</b> ${isOurTeam(g.home)?'gegen':'bei'} ${logoImg(opp,'sm')}<b>${esc(opp)}</b>${g.field?' · '+esc(g.field):''} <button class="mini" id="st_next">Vorbereiten</button></div>`;})()}</div>
     <div class="row"><button class="tool primary" id="st_get">Daten holen</button></div></section>`;
   if(!reps.length)h+=`<section class="card"><p>Noch keine Spielberichte in der Statistik. Tippe auf <b>Daten holen</b>: Spielplan auf handball.net öffnen, die Spielberichte als PDF herunterladen und hier gesammelt einlesen. Berichte aus dem Gegner-Scouting und aus der Analyse landen automatisch ebenfalls hier.</p></section>`;
   else{
@@ -1753,10 +1758,8 @@ function renderStats(){
   document.querySelectorAll('[data-adel]').forEach(b=>b.onclick=()=>{const i=+b.dataset.adel,g=S.archive[i];
     openSheet(head('Archiviertes Spiel löschen?')+`<p>${esc(g.nameH)} – ${esc(g.nameG)} (${esc(fmtDate(g.datum))}) wird mit allen Szenen gelöscht.</p><div class="row"><button class="tool danger" id="ad_yes">Löschen</button><button class="tool" data-close>Abbrechen</button></div>`);
     $('ad_yes').onclick=()=>{S.archive.splice(i,1);save();closeSheet();toast('Archiviertes Spiel gelöscht');};});
-  if($('st_prep'))$('st_prep').onclick=()=>{const tt=T.find(x=>normT(x.name)===statTeam);if(!tt)return;
-    S.scout={team:tt.name,reports:tt.games.map(g=>({nr:g.nr,datum:g.datum,dk:g.dk,team:g.team,gegner:g.gegner,hg:g.hg,gf:g.gf,ga:g.ga,h1f:g.h1f,h1a:g.h1a,pens:g.pens,to:g.to,roster:g.roster}))};
-    S.cfg.nameG=tt.name;const last=tt.games[tt.games.length-1];if(last&&last.roster.length)S.cfg.rosterG=last.roster.map(p=>({nr:p.nr,name:p.name}));
-    save();toast(tt.name+' als Gegner übernommen');location.hash='#vorbereitung';};
+  if($('st_prep'))$('st_prep').onclick=()=>{const tt=T.find(x=>normT(x.name)===statTeam);if(tt)prepareOpponent(tt.name);};
+  if($('st_next'))$('st_next').onclick=()=>{const g=nextOwnGame();if(g)prepareOpponent(isOurTeam(g.home)?g.away:g.home);};
 }
 function teamDetail(t,maxDay,games){
   const A=teamAgg(t),I=scoutInsights(A),miss=missingDays(t,maxDay),ours=isOurTeam(t.name);
@@ -1810,6 +1813,10 @@ function fetchSheet(){
   const url=L.url&&/^https?:\/\//.test(L.url)?L.url:'';
   let h=head('Daten holen')+`<p class="pending">handball.net lässt keinen automatischen Abruf zu. So geht es wie beim Kursupdate im Fondsfinder in wenigen Minuten von Hand, am besten jeden Sonntagabend.</p>
     <div class="steps">
+    <div class="stepc"><b>handball.net-Seite einlesen</b><div class="pending">Liga- oder Teamseite auf handball.net öffnen, gewünschten Spieltag wählen und die Seite sichern (Safari: Ablage → Sichern unter, Chrome: Seite speichern). Die Datei hier auswählen: Die App übernimmt Spiele, Ergebnisse, Links zu den Spielberichten, Teams und Teamspielpläne. Für weitere Spieltage einfach erneut sichern und einlesen.</div>
+      <input type="file" id="fx_hb" accept=".html,.htm,.webarchive,text/html" multiple>
+      ${IS_WEBAPP?'<label class="check"><input type="checkbox" id="fx_logos" checked> Vereinslogos übernehmen</label>':''}<div id="fx_hbst" class="pending"></div></div>
+    ${hbGamesHTML()}
     <div class="stepc"><b><span class="stepn">1</span>Staffel auf handball.net öffnen</b>
       <label class="fl">Link zum Spielplan eurer Staffel (einmalig eintragen)<input type="url" id="fx_url" value="${esc(L.url)}" placeholder="https://www.handball.net/…"></label>
       <div class="row">${url?`<a class="tool primary linkbtn" href="${esc(url)}" target="_blank" rel="noopener">Spielplan öffnen</a>`:''}<a class="tool linkbtn2" href="https://www.handball.net/" target="_blank" rel="noopener">handball.net öffnen</a></div></div>
@@ -1824,6 +1831,12 @@ function fetchSheet(){
     <div class="row"><button class="tool" data-close>Fertig</button></div>`;
   openSheet(h);
   $('fx_url').onchange=()=>{L.url=$('fx_url').value.trim();save();fetchSheet();};
+  $('fx_hb').onchange=async ev=>{const files=[...ev.target.files];if(!files.length)return;const st=$('fx_hbst');const ids=new Set();let T=0,N=0,bad=[];
+    for(const f of files){try{const txt=new TextDecoder('utf-8').decode(await f.arrayBuffer());const P=parseHbnet(txt);
+        if(!P||(!P.games.length&&!P.teams.length)){bad.push(f.name);continue;}const r=applyHbnet(P,!!($('fx_logos')&&$('fx_logos').checked));P.games.forEach(g=>ids.add(g.id));T=Math.max(T,r.teams);N+=r.newOpp;}
+      catch(e){bad.push(f.name);}}
+    const G=ids.size;if(!G&&!T){st.innerHTML='<span class="err">In der Datei wurden keine Spiele gefunden. Bitte die Seite von handball.net vollständig sichern (nicht nur als Text).</span>';return;}
+    fetchSheet();toast(`${G} Spiele und ${T} Teams übernommen${N?', '+N+' neue Gegner':''}${bad.length?' · '+bad.length+' Datei(en) nicht lesbar':''}`);if(view==='statistik')renderStats();};
   $('fx_files').onchange=async ev=>{const files=[...ev.target.files];if(!files.length)return;const st=$('fx_status');let add=0,dup=0;const errs=[];
     for(let i=0;i<files.length;i++){st.textContent=`Lese Bericht ${i+1} von ${files.length} …`;
       try{const R=await readPdf(files[i]);if(!repGoals(R).length&&!R.roster.heim.length)throw new Error('kein Spielbericht erkannt');if(addToLeague(R))add++;else dup++;}catch(e){errs.push(files[i].name+': '+(e.message||e));}}
@@ -1905,7 +1918,7 @@ function oppEntry(name){const O=oppState();for(const k in O)if(matchTeam(O[k].na
 const okUrl=u=>/^https?:\/\//i.test(u||'');
 function linkBtn(url,label,cls){return okUrl(url)?`<a class="tool linkbtn2 ${cls||''}" href="${esc(url)}" target="_blank" rel="noopener">${label}</a>`:'';}
 function logoPicker(name,id){const u=logoFor(name);
-  return `<span class="logopick">${u?`<img class="logo md" src="${u}" alt="Logo ${esc(name)}">`:'<span class="logo md ph" aria-hidden="true">?</span>'}
+  return `<span class="logopick">${u?`<img class="logo md" src="${u}" alt="" onerror="this.hidden=true">`:'<span class="logo md ph" aria-hidden="true">?</span>'}
     <label class="mini filelbl">${u?'ändern':'Logo'}<input type="file" accept="image/*" data-logo="${esc(name)}" id="${id}"></label>${u?`<button class="mini" data-logodel="${esc(name)}" aria-label="Logo entfernen">×</button>`:''}</span>`;}
 function bindLogos(root,after){
   root.querySelectorAll('[data-logo]').forEach(inp=>inp.onchange=async()=>{const f=inp.files[0];if(!f)return;try{const url=await readLogo(f);if(setLogo(inp.dataset.logo,url))toast('Logo gespeichert');}catch(e){toast(e.message);}setTimeout(()=>render(),0);});
@@ -1933,7 +1946,7 @@ function bindTeams(){
 function leagueOpponents(){
   const names=new Map();
   for(const t of leagueTable())if(!isOurTeam(t.name))names.set(normT(t.name),{name:t.name,src:'bericht'});
-  for(const k in oppState()){const o=S.opp[k];if(isOurTeam(o.name))continue;let found=false;for(const [kk,v] of names)if(matchTeam(v.name,o.name)){found=true;break;}if(!found)names.set(k,{name:o.name,src:'manuell'});}
+  for(const k in oppState()){const o=S.opp[k];if(isOurTeam(o.name))continue;let found=false;for(const [kk,v] of names)if(matchTeam(v.name,o.name)){found=true;break;}if(!found)names.set(k,{name:o.name,src:o.src||'manuell'});}
   return [...names.values()].sort((a,b)=>a.name.localeCompare(b.name));
 }
 function parseTablePaste(txt){
@@ -1954,9 +1967,9 @@ function oppHTML(){
       <textarea id="op_paste" placeholder="Auf handball.net die Tabelle markieren, kopieren und hier einfügen"></textarea>
       <div class="row"><button class="tool" id="op_parse">Gegner erkennen</button></div><div id="op_prev"></div></details>
     <div class="rlist">${L.length?L.map((o,i)=>{const e=oppEntry(o.name)||{};return `<div class="orow2">${logoPicker(o.name,'lg_'+i)}
-      <div class="oname"><b>${esc(o.name)}</b><span class="pending">${o.src==='bericht'?'aus Spielberichten':'manuell'}</span></div>
+      <div class="oname"><b>${esc(o.name)}</b><span class="pending">${o.src==='bericht'?'aus Spielberichten':o.src==='handball.net'?'von handball.net':'manuell'}</span></div>
       <input type="url" data-ourl="${esc(o.name)}" value="${esc(e.url||'')}" placeholder="Link zum Teamspielplan auf handball.net" aria-label="Link zum Teamspielplan ${esc(o.name)}">
-      <span class="row">${linkBtn(e.url,'öffnen')}${o.src==='manuell'?`<button class="mini danger" data-odel="${esc(o.name)}" aria-label="Gegner entfernen">×</button>`:''}</span></div>`;}).join(''):'<div class="pending">Noch keine Gegner. Spielberichte einlesen (Reiter Statistik → Daten holen) oder die Tabelle einfügen.</div>'}</div>
+      <span class="row">${linkBtn(e.url,'öffnen')}${o.src!=='bericht'?`<button class="mini danger" data-odel="${esc(o.name)}" aria-label="Gegner entfernen">×</button>`:''}</span></div>`;}).join(''):'<div class="pending">Noch keine Gegner. Spielberichte einlesen (Reiter Statistik → Daten holen) oder die Tabelle einfügen.</div>'}</div>
     <div class="row"><input id="op_new" placeholder="Gegner von Hand hinzufügen" aria-label="Gegner hinzufügen"><button class="tool" id="op_add">Hinzufügen</button></div>`;
 }
 function bindOpp(){
@@ -2125,6 +2138,65 @@ function syncBind(){
       b.innerHTML=`<span>Neuere Daten von ${esc(d.device)} (${dt(d.savedAt)})</span><button type="button">Laden</button><button type="button" class="x">Später</button>`;
       b.querySelector('button').onclick=()=>{b.remove();syncLoadSheet(d);};b.querySelector('.x').onclick=()=>b.remove();document.body.appendChild(b);}}catch(e){}
   renderCloud();})();
+
+/* ---------- handball.net-Seite einlesen (gesicherte Liga- oder Teamseite) ---------- */
+function parseHbnet(txt){
+  const m=/<script[^>]*id="serverApp-state"[^>]*>([\s\S]*?)<\/script>/.exec(txt)||/<script[^>]*type="application\/json"[^>]*>([\s\S]*?)<\/script>/.exec(txt);
+  if(!m)return null;let data=null;
+  try{data=JSON.parse(m[1]);}catch(e){try{const t=document.createElement('textarea');t.innerHTML=m[1];data=JSON.parse(t.value);}catch(e2){return null;}}
+  const games={},teams={};let phase=null;
+  const walk=o=>{if(Array.isArray(o)){o.forEach(walk);return;}if(!o||typeof o!=='object')return;
+    if(typeof o.code==='string'&&o.round!=null&&o.local&&o.visitor&&o.id){games[o.id]=o;if(o.phase&&o.phase.name)phase=o.phase;}
+    for(const k in o)walk(o[k]);};
+  walk(data);
+  const qs=/[?&]phaseId=(\d+)/.exec(txt),season=/season_id=(\d+)/.exec(txt);
+  const teamUrl=id=>'https://www.handball.net/team/'+id+'?season_id='+((phase&&phase.season_id)||(season&&season[1])||'')+'&phaseId='+((phase&&phase.id)||(qs&&qs[1])||'');
+  const re=/href="\/team\/(\d+)\?([^"]*)"[^>]*>([\s\S]*?)<\/a>/g;let a;
+  while((a=re.exec(txt))){const nm=a[3].replace(/<[^>]+>/g,' ').replace(/&nbsp;/g,' ').replace(/&gt;|&lt;|>/g,' ').replace(/&amp;/g,'&').replace(/\s+/g,' ').trim();
+    if(nm&&!teams[a[1]])teams[a[1]]={id:a[1],name:nm,url:'https://www.handball.net/team/'+a[1]+'?'+a[2].replace(/&amp;/g,'&')};}
+  for(const g of Object.values(games))for(const t of [g.local,g.visitor]){if(!t||!t.id)continue;const k=String(t.id);
+    if(!teams[k])teams[k]={id:k,name:t.name,url:teamUrl(k)};else teams[k].name=t.name||teams[k].name;
+    if(t.club&&t.club.logo)teams[k].logo=t.club.logo;}
+  const canon=(/rel="canonical" href="([^"]+)"/.exec(txt)||[])[1];
+  return{games:Object.values(games).map(g=>({id:g.id,code:g.code,round:g.round,order:g.order,date:g.date,home:g.local.name,away:g.visitor.name,
+      hs:g.result?g.result.local:null,as:g.result?g.result.visitor:null,status:(g.status||{}).short_name||'',finished:!!(g.status||{}).is_finished,live:!!(g.status||{}).is_live,
+      report:g.report||null,field:g.field&&g.field.name||''})),
+    teams:Object.values(teams),phase:phase?{name:phase.name,id:phase.id}:null,league:canon?canon.replace(/&amp;/g,'&'):null};
+}
+function applyHbnet(P,withLogos){
+  const L=leagueState();L.games=L.games||{};
+  for(const g of P.games)L.games[g.id]=Object.assign(L.games[g.id]||{},g);
+  if(P.league&&/\/ligen\//.test(P.league)&&!L.url)L.url=P.league;if(P.phase)L.name=P.phase.name;
+  let own=null,newOpp=0;
+  for(const t of P.teams){
+    if(isOurTeam(t.name)){own=t;if(!linksOf().team)linksOf().team=t.url;}
+    else{const ex=oppEntry(t.name);if(ex){if(!ex.url)ex.url=t.url;}else{oppState()[normT(t.name)]={name:t.name,url:t.url,src:'handball.net'};newOpp++;}}
+    if(withLogos&&t.logo&&!logoFor(t.name))LOGO[normT(t.name)]=t.logo;}
+  if(withLogos)logoSave();save();
+  return{games:P.games.length,teams:P.teams.length,newOpp,own};
+}
+const gameDate=d=>{try{return new Date(d).toLocaleString('de-DE',{weekday:'short',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'});}catch(e){return d||'';}};
+function hbGamesHTML(){
+  const L=leagueState(),G=Object.values(L.games||{});if(!G.length)return '';
+  const have=new Set(Object.values(L.reports||{}).map(r=>r.nr));
+  const open=G.filter(g=>g.finished&&g.report&&!have.has(g.code)).length;
+  const rounds=[...new Set(G.map(g=>g.round))].sort((a,b)=>b-a);
+  return `<div class="stepc"><b>Spiele von handball.net</b><div class="pending">${G.length} Spiele aus gesicherten Seiten · <b>${open} Spielbericht${open===1?'':'e'} noch nicht eingelesen</b>. Tippe auf „Bericht“, lade das PDF und lies es unten in Schritt 3 ein.</div>
+    <div class="tw"><table class="hbg"><thead><tr><th>ST</th><th>Datum</th><th>Paarung</th><th class="r">Ergebnis</th><th>Spielbericht</th></tr></thead><tbody>
+    ${rounds.map(r=>G.filter(g=>g.round===r).sort((a,b)=>(a.order||0)-(b.order||0)).map(g=>{const done=have.has(g.code),ours=isOurTeam(g.home)||isOurTeam(g.away);
+      return `<tr class="${ours?'ours':''}"><td class="num">${g.round}</td><td class="num">${esc(gameDate(g.date))}</td><td>${logoImg(g.home,'sm')}${esc(g.home)} – ${esc(g.away)}${logoImg(g.away,'sm')}</td>
+      <td class="r num">${g.hs!=null&&g.as!=null?g.hs+':'+g.as:''}${g.live?' <span class="st diff">läuft</span>':''}</td>
+      <td>${done?'<span class="st ok">eingelesen</span>':g.report?`<a class="mini linkbtn2" href="${esc(g.report)}" target="_blank" rel="noopener">Bericht öffnen</a>`:`<span class="pending">${g.finished?'kein Bericht':g.live?'nach Spielende':'noch nicht gespielt'}</span>`}</td></tr>`;}).join('')).join('')}
+    </tbody></table></div></div>`;
+}
+function nextOwnGame(){const G=Object.values(leagueState().games||{}).filter(g=>!g.finished&&(isOurTeam(g.home)||isOurTeam(g.away))).sort((a,b)=>String(a.date).localeCompare(String(b.date)));return G[0]||null;}
+function prepareOpponent(name){
+  const T=leagueTable(),tt=T.find(x=>matchTeam(x.name,name));
+  S.cfg.nameG=tt?tt.name:name;
+  if(tt){S.scout={team:tt.name,reports:tt.games.map(g=>({nr:g.nr,datum:g.datum,dk:g.dk,team:g.team,gegner:g.gegner,hg:g.hg,gf:g.gf,ga:g.ga,h1f:g.h1f,h1a:g.h1a,pens:g.pens,to:g.to,roster:g.roster}))};
+    const last=tt.games[tt.games.length-1];if(last&&last.roster.length)S.cfg.rosterG=last.roster.map(p=>({nr:p.nr,name:p.name}));}
+  save();toast(S.cfg.nameG+' als Gegner übernommen');location.hash='#vorbereitung';
+}
 
 S=load();
 if(!S){S=fresh();loadDemo();}
