@@ -592,7 +592,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='33';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='34';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1932,8 +1932,8 @@ function teamDetail(t,maxDay,games){
     ${I.map(([s,x])=>`<div class="find ${s}"><span>${esc(x)}</span></div>`).join('')}
     <div class="cols2"><div><h3>Spiele</h3><div class="tw"><table><thead><tr><th>ST</th><th>Datum</th><th>Gegner</th><th class="r">Ergebnis</th></tr></thead><tbody>
       ${t.games.map(g=>`<tr><td class="num">${g.spieltag||'–'}</td><td class="num">${esc(g.datum)}</td><td>${g.hg==='heim'?'gegen':'bei'} ${esc(g.gegner)}</td><td class="r num ${g.gf>g.ga?'win':g.gf<g.ga?'loss':''}">${g.nr&&leagueState().reports[g.nr]?`<button class="pbtn" data-rsum="${esc(g.nr)}">${g.gf}:${g.ga}</button>`:g.gf+':'+g.ga}</td></tr>`).join('')}</tbody></table></div></div>
-    <div><h3>Torschützen</h3><div class="tw"><table><thead><tr><th>Nr.</th><th>Name</th><th class="r">Sp</th><th class="r">Tore</th><th class="r">Ø</th><th class="r">7m</th></tr></thead><tbody>
-      ${A.players.filter(p=>p.tore).slice(0,12).map(p=>`<tr><td class="num">${p.nr}</td><td>${plink(p.name)}</td><td class="r num">${p.games}</td><td class="r num">${p.tore}</td><td class="r num">${f1(p.tore/p.games)}</td><td class="r num">${p.a7?p.g7+'/'+p.a7:'–'}</td></tr>`).join('')||'<tr><td colspan="6" class="pending">Keine Torschützen gelesen.</td></tr>'}</tbody></table></div></div></div>`;
+    <div><h3>Spieler und Tore</h3><div class="tw"><table><thead><tr><th>Nr.</th><th>Name</th><th class="r">Sp</th><th class="r">Tore</th><th class="r">Ø</th><th class="r">7m</th></tr></thead><tbody>
+      ${A.players.filter(p=>p.name||p.tore).map(p=>`<tr><td class="num">${p.nr}</td><td>${plink(p.name,t.name)}</td><td class="r num">${p.games}</td><td class="r num">${p.tore}</td><td class="r num">${f1(p.tore/p.games)}</td><td class="r num">${p.a7?p.g7+'/'+p.a7:'–'}</td></tr>`).join('')||'<tr><td colspan="6" class="pending">Keine Spieler gelesen.</td></tr>'}</tbody></table></div></div></div>`;
   if(!ours){
     const vs=games.filter(g=>matchTeam(g.nameG,t.name));
     if(vs.length){const E=vs.flatMap(g=>g.events),a=evStats(E,'H'),b=evStats(E,'G');
