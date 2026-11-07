@@ -355,6 +355,12 @@ td.win{color:var(--good);font-weight:700} td.loss{color:var(--def);font-weight:7
 
 .goal .gz.hi .gzt,.goal .gz.hi .gzs{fill:#fff}
 .goal.map .gz:not(.hi) .gzt{fill:var(--muted)}
+
+.cloud{border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:12px;font-weight:700;padding:4px 10px;white-space:nowrap;min-height:30px}
+.cloud.dirty{color:var(--warn);border-color:var(--warn-line);background:var(--warn-bg)}
+.cloud.ok{color:var(--good)}
+#sy_dev{font:inherit;font-weight:700;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:4px 6px;width:100%}
+.updbar .x{background:transparent;border:1px solid rgba(255,255,255,.5)}
 </style>
 
 </head>
@@ -378,6 +384,7 @@ window.hbHardReload=async function(){
     <a href="#statistik" class="navtab" data-view="statistik"><span class="step">4</span>Statistik</a>
     <a href="#einstellungen" class="navtab" data-view="einstellungen"><span class="step">5</span>Einstellungen</a>
     <span class="navmeta" id="navMeta"></span>
+    <button class="cloud" id="cloudBtn" hidden></button>
     <label class="teamsw"><span class="sr">Mannschaft wechseln</span><select id="teamSel" aria-label="Mannschaft wechseln"></select></label>
     <span class="ver" id="appVer"></span>
   </nav>
@@ -523,7 +530,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='10';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='11';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -603,7 +610,7 @@ function migrate(o){
   return o;
 }
 function load(){try{const r=localStorage.getItem(KEY);if(r){const o=JSON.parse(r);if(o&&o.cfg&&Array.isArray(o.events))return migrate(o);}}catch(e){}return null;}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast('Speichern fehlgeschlagen: Speicher voll?');}try{ensureIndex();}catch(e){}}
+function save(noTouch){if(!noTouch&&S)S.modAt=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){toast('Speichern fehlgeschlagen: Speicher voll?');}try{ensureIndex();}catch(e){}if(!noTouch){try{window.hbAutoSync&&window.hbAutoSync();}catch(e){}}}
 /* Mehrere Mannschaften: aktive Mannschaft liegt unter KEY, die übrigen unter hb-live-team-<id> */
 const IDX='hb-live-index',LOGOS='hb-live-logos',TKEY=id=>'hb-live-team-'+id;
 function idxLoad(){try{const o=JSON.parse(localStorage.getItem(IDX)||'null');if(o&&Array.isArray(o.teams))return o;}catch(e){}return null;}
@@ -745,7 +752,7 @@ function render(){
   VIEWS.forEach(v=>$('view-'+v).hidden=v!==view);
   const sc0=score();$('navMeta').textContent=`${S.cfg.nameH} ${sc0.h}:${sc0.g} ${S.cfg.nameG}`;
   $('demoNote').hidden=!S.demo;
-  renderTeamSel();
+  renderTeamSel();try{renderCloud();}catch(e){}
   {const u=logoFor(S.cfg.nameH),bl=$('brandLogo');bl.hidden=!u;bl.innerHTML=u?`<img src="${u}" alt="Logo ${esc(S.cfg.nameH)}">`:'';}
   const vtxt='Version '+APP_VERSION+' · '+(STANDALONE?'App':'Browser');$('appVer').textContent=vtxt;$('footVer').textContent=vtxt;
   if(view==='vorbereitung')renderPrep();else if(view==='analyse')renderAna();else if(view==='statistik')renderStats();else if(view==='einstellungen')renderSettings();else renderLive();
@@ -927,7 +934,7 @@ function mergeOwnRoster(list){
 }
 function renderSettings(){const tab=setTab;
   const c=S.cfg;
-  const T=[['team','Team & Kader'],['teams','Mannschaften'],['opp','Gegner & Logos'],['plays','Spielzüge'],['causes','Ursachen'],['th','Hinweise'],['app','App & Daten']];
+  const T=[['team','Team & Kader'],['teams','Mannschaften'],['opp','Gegner & Logos'],['plays','Spielzüge'],['causes','Ursachen'],['th','Hinweise'],['app','Sync & App']];
   let h=`<section class="card setcard"><div class="tabs" role="tablist">${T.map(([k,l])=>`<button class="tab${tab===k?' on':''}" data-tab="${k}" role="tab" aria-selected="${tab===k}">${l}</button>`).join('')}</div>`;
   if(tab==='plays'){
     h+=`<p class="pending">Gib den Spielzügen eure eigenen Namen, so wie sie im Training und von der Bank angesagt werden. Umbenennen ändert auch alle bisher erfassten Szenen, die Statistik bleibt erhalten. Nur aktive Spielzüge erscheinen als Taste.</p>`;
@@ -958,7 +965,7 @@ function renderSettings(){const tab=setTab;
   }else if(tab==='opp'){
     h+=oppHTML();
   }else if(tab==='app'){
-    h+=`<h3>Spiel</h3><div class="row"><button class="tool" id="s_demo">Beispieldaten laden</button><button class="tool danger" id="s_new">Neues Spiel</button></div>
+    h+=syncHTML()+`<h3>Spiel</h3><div class="row"><button class="tool" id="s_demo">Beispieldaten laden</button><button class="tool danger" id="s_new">Neues Spiel</button></div>
     <h3>App</h3><div class="row"><span class="pending">${'Version '+APP_VERSION+' · '+(STANDALONE?'App':'Browser')}</span>${window.hbHardReload?'<button class="tool" id="s_reload">App neu laden</button>':''}</div>
     <div class="row"><button class="tool" id="s_data">Daten sichern</button></div>`;
   }else{
@@ -968,7 +975,7 @@ function renderSettings(){const tab=setTab;
   h+='</section>';
   $('view-einstellungen').innerHTML=h;
   const sh=$('view-einstellungen');
-  if(tab==='team')bindTeamSettings();if(tab==='teams')bindTeams();if(tab==='opp')bindOpp();
+  if(tab==='team')bindTeamSettings();if(tab==='teams')bindTeams();if(tab==='opp')bindOpp();if(tab==='app')syncBind();
   sh.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>settings(b.dataset.tab));
   const cfind=v=>{const [side,id]=v.split('|');return c.causes[side].find(x=>x.id===id);};
   sh.querySelectorAll('[data-cname]').forEach(i=>i.onchange=()=>{const x=cfind(i.dataset.cname),v=i.value.trim();if(v){x.name=v;save();toast('Name gespeichert');}else i.value=x.name;});
@@ -1715,7 +1722,7 @@ function confirmClose(){
   openSheet(head('Spiel abschließen?')+`<p>Das Spiel mit ${n} erfassten Szenen wird im Archiv gespeichert und fließt in den Reiter Statistik ein. Danach startet ein neues, leeres Spiel. Kader, Spielzüge, Ursachen, Scouting und Statistik bleiben erhalten.</p>
     ${S.sync?'':'<p class="pending">Hinweis: Der Spielbericht ist noch nicht abgeglichen. Für saubere Zeiten und Torschützen vorher abgleichen.</p>'}
     <div class="row"><button class="tool primary" id="cl_yes">Abschließen und archivieren</button><button class="tool" data-close>Abbrechen</button></div>`);
-  $('cl_yes').onclick=()=>{archiveGame();resetGame(false);save();closeSheet();toast('Spiel archiviert');location.hash='#statistik';};
+  $('cl_yes').onclick=()=>{archiveGame();resetGame(false);save();closeSheet();toast(IS_WEBAPP?'Spiel archiviert. Jetzt in iCloud sichern: Wolke oben antippen.':'Spiel archiviert');location.hash='#statistik';};
 }
 function missingDays(t,maxDay){
   const have=new Set(t.games.map(g=>g.spieltag).filter(Boolean));if(!maxDay||!have.size)return[];
@@ -2003,6 +2010,121 @@ function oppKeeperScout(teamName){
   const nameOf=nr=>{for(const g of games){const p=(g.rosterG||[]).find(p=>p.nr===nr);if(p&&p.name)return 'Nr. '+nr+' '+p.name.split(/\s+/)[0];}return 'Nr. '+nr;};
   return{games,groups,nameOf};
 }
+
+/* ---------- Synchronisation über eine Datei im iCloud-Ordner ---------- */
+const SYNC_FILE='Handball-Live-Daten.json',IS_WEBAPP=!!window.hbHardReload,FS_OK=IS_WEBAPP&&!!window.showDirectoryPicker;
+const IS_TOUCH=navigator.maxTouchPoints>1||/iPad|iPhone|Android/.test(navigator.userAgent);
+function deviceName(){let d=null;try{d=localStorage.getItem('hb-live-device');}catch(e){}if(d)return d;return IS_TOUCH?'iPad':/Mac/.test(navigator.userAgent)?'Mac':'Gerät';}
+function syncMeta(){try{return JSON.parse(localStorage.getItem('hb-live-sync')||'{}')||{};}catch(e){return{};}}
+function setSyncMeta(m){try{localStorage.setItem('hb-live-sync',JSON.stringify(Object.assign(syncMeta(),m)));}catch(e){}}
+const dt=t=>t?new Date(t).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'–';
+function teamStates(){save(true);const I=ensureIndex();return I.teams.map(t=>{if(t.id===S.teamId)return{id:t.id,label:t.label,state:S};
+  try{const st=JSON.parse(localStorage.getItem(TKEY(t.id)));return st?{id:t.id,label:t.label,state:st}:null;}catch(e){return null;}}).filter(Boolean);}
+function collectAll(){const teams=teamStates();return{format:'handball-live-sync',formatVersion:1,appVersion:APP_VERSION,savedAt:Date.now(),device:deviceName(),activeId:S.teamId,teams,logos:LOGO};}
+function lastChange(){let m=S.modAt||0;for(const t of ensureIndex().teams){if(t.id===S.teamId)continue;try{const st=JSON.parse(localStorage.getItem(TKEY(t.id)));if(st&&st.modAt>m)m=st.modAt;}catch(e){}}return m;}
+/* IndexedDB für den verbundenen Ordner (nur Chrome/Edge) */
+function fsDb(){return new Promise(res=>{try{const r=indexedDB.open('hb-live-fs',1);r.onupgradeneeded=()=>r.result.createObjectStore('h');r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});}
+async function fsGet(){const d=await fsDb();if(!d)return null;return new Promise(res=>{const q=d.transaction('h').objectStore('h').get('dir');q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);});}
+async function fsSet(v){const d=await fsDb();if(!d)return;return new Promise(res=>{const t=d.transaction('h','readwrite');if(v)t.objectStore('h').put(v,'dir');else t.objectStore('h').delete('dir');t.oncomplete=()=>res();t.onerror=()=>res();});}
+let fsState='none';
+async function fsHandle(ask){if(!FS_OK)return null;const h=await fsGet();if(!h){fsState='none';return null;}
+  const o={mode:'readwrite'};let p='denied';try{p=await h.queryPermission(o);if(p!=='granted'&&ask)p=await h.requestPermission(o);}catch(e){}
+  fsState=p==='granted'?'ok':'prompt';return p==='granted'?h:null;}
+async function fsWrite(txt){const h=await fsHandle(false);if(!h)return false;try{const fh=await h.getFileHandle(SYNC_FILE,{create:true});const w=await fh.createWritable();await w.write(txt);await w.close();return true;}catch(e){return false;}}
+async function fsRead(){const h=await fsHandle(true);if(!h)return null;try{const fh=await h.getFileHandle(SYNC_FILE);return await (await fh.getFile()).text();}catch(e){return null;}}
+let autoT=null;
+window.hbAutoSync=()=>{if(!FS_OK||fsState!=='ok')return;clearTimeout(autoT);autoT=setTimeout(async()=>{const d=collectAll();if(await fsWrite(JSON.stringify(d))){setSyncMeta({savedAt:d.savedAt,how:'Ordner (automatisch)'});renderCloud();}},4000);};
+async function syncSave(){
+  const d=collectAll(),txt=JSON.stringify(d),file=new File([txt],SYNC_FILE,{type:'application/json'});
+  if(FS_OK&&await fsHandle(true)&&await fsWrite(txt)){setSyncMeta({savedAt:d.savedAt,how:'Ordner'});toast('Im Ordner gespeichert');renderCloud();if(view==='einstellungen')renderSettings();return;}
+  if(IS_TOUCH&&navigator.canShare&&navigator.canShare({files:[file]})){
+    try{await navigator.share({files:[file],title:SYNC_FILE});setSyncMeta({savedAt:d.savedAt,how:'Teilen-Menü'});toast('Gesichert');renderCloud();if(view==='einstellungen')renderSettings();return;}
+    catch(e){if(e&&e.name==='AbortError')return;}}
+  const a=document.createElement('a');a.href=URL.createObjectURL(file);a.download=SYNC_FILE;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},3000);
+  setSyncMeta({savedAt:d.savedAt,how:'Download'});toast('Datei heruntergeladen');renderCloud();if(view==='einstellungen')renderSettings();
+}
+function renderCloud(){const b=$('cloudBtn');if(!b)return;if(!IS_WEBAPP){b.hidden=true;return;}b.hidden=false;
+  const m=syncMeta(),dirty=lastChange()>(m.savedAt||0)+1500;b.className='cloud'+(dirty?' dirty':' ok');
+  b.textContent=dirty?'☁︎ nicht gesichert':'☁︎ gesichert';b.title=dirty?'Änderungen seit '+dt(m.savedAt)+' noch nicht in iCloud gesichert':'Zuletzt gesichert '+dt(m.savedAt);
+  b.onclick=()=>syncSave();}
+/* Zusammenführen */
+const unionBy=(a,b,k)=>{const m=new Map();(a||[]).forEach(x=>m.set(k(x),x));(b||[]).forEach(x=>{if(!m.has(k(x)))m.set(k(x),x);});return[...m.values()];};
+function mergeState(loc,rem){
+  const remNewer=(rem.modAt||0)>(loc.modAt||0),newer=remNewer?rem:loc,older=remNewer?loc:rem,out=JSON.parse(JSON.stringify(newer));
+  out.league=out.league||{url:'',updated:null,reports:{}};out.league.reports=Object.assign({},((older.league||{}).reports)||{},out.league.reports||{});
+  if(!out.league.url&&older.league&&older.league.url)out.league.url=older.league.url;
+  out.archive=unionBy(newer.archive,older.archive,g=>g.id);
+  if(older.scout&&older.scout.reports){if(!out.scout)out.scout=older.scout;else if(normT(out.scout.team)===normT(older.scout.team))out.scout.reports=unionBy(out.scout.reports,older.scout.reports,r=>r.nr);}
+  out.opp=Object.assign({},older.opp||{},out.opp||{});
+  return{state:out,remNewer,lostGame:(older.events||[]).filter(e=>e.type==='pos').length&&!older.demo&&JSON.stringify(older.events)!==JSON.stringify(newer.events)?(older.events||[]).filter(e=>e.type==='pos').length:0,lostSide:remNewer?'Gerät':'Datei'};
+}
+function onlyDemo(){const I=ensureIndex();return I.teams.length===1&&(S.demo||!posEv().length)&&!(S.archive||[]).length&&!Object.keys((S.league||{}).reports||{}).length;}
+function syncLoadSheet(data){
+  if(!data||data.format!=='handball-live-sync'||!Array.isArray(data.teams)){toast('Das ist keine Handball-Live-Datei');return;}
+  const local=new Map(teamStates().map(t=>[t.id,t.state]));
+  const rows=data.teams.map(t=>{const l=local.get(t.id);if(!l)return{t,kind:'neu'};const m=mergeState(l,t.state);return{t,kind:m.remNewer?'datei':'geraet',lost:m.lostGame,lostSide:m.lostSide};});
+  const onlyLocal=[...local.keys()].filter(id=>!data.teams.some(t=>t.id===id));
+  const fresh=onlyDemo();
+  let h=head('Daten aus iCloud laden')+`<div class="facts"><div class="fact"><small>Datei</small><b>${esc(data.device||'?')} · ${dt(data.savedAt)}</b></div><div class="fact"><small>Version</small><b>App ${esc(data.appVersion||'?')}</b></div><div class="fact"><small>Mannschaften</small><b>${data.teams.length}</b></div></div>
+    <div class="tw"><table><thead><tr><th>Mannschaft</th><th>Zusammenführen</th></tr></thead><tbody>
+    ${rows.map(r=>`<tr><td>${esc(r.t.label||teamLabel(r.t.state))}</td><td>${r.kind==='neu'?'<span class="st ok">neu auf diesem Gerät</span>':r.kind==='datei'?'<span class="st ok">Datei ist neuer</span>':'<span class="st diff">Gerät ist neuer, eigener Stand bleibt</span>'}${r.lost?` <span class="err">· laufendes Spiel auf dem ${r.lostSide==='Gerät'?'Gerät':'Datei-Stand'} (${r.lost} Szenen) wird ersetzt</span>`:''}</td></tr>`).join('')}
+    ${onlyLocal.map(id=>`<tr><td>${esc(teamLabel(local.get(id)))}</td><td><span class="st">nur auf diesem Gerät, bleibt</span></td></tr>`).join('')}</tbody></table></div>
+    <p class="pending">Zusammenführen vereint archivierte Spiele, Spielberichte, Scouting, Gegner und Logos. Für das laufende Spiel, Kader und Einstellungen gilt der jeweils neuere Stand. „Komplett ersetzen“ übernimmt die Datei so, wie sie ist.${fresh?' Auf diesem Gerät sind nur Beispieldaten, deshalb ist „Komplett ersetzen“ hier richtig.':''}</p>
+    <div class="row"><button class="tool${fresh?'':' primary'}" id="sy_merge">Zusammenführen</button><button class="tool${fresh?' primary':' danger'}" id="sy_replace">Komplett ersetzen</button><button class="tool" data-close>Abbrechen</button></div>`;
+  openSheet(h);
+  $('sy_merge').onclick=()=>{applyImport(data,'merge');closeSheet();toast('Daten zusammengeführt');};
+  $('sy_replace').onclick=()=>{applyImport(data,'replace');closeSheet();toast('Daten übernommen');};
+}
+function applyImport(data,mode){
+  const local=new Map(teamStates().map(t=>[t.id,t.state])),merged=new Map();
+  if(mode==='replace')data.teams.forEach(t=>merged.set(t.id,t.state));
+  else{local.forEach((s,id)=>merged.set(id,s));data.teams.forEach(t=>{const l=local.get(t.id);merged.set(t.id,l?mergeState(l,t.state).state:t.state);});}
+  const ids=[...merged.keys()],active=merged.has(S.teamId)?S.teamId:(merged.has(data.activeId)?data.activeId:ids[0]);
+  for(const id of ids)if(id!==active){const st=merged.get(id);st.teamId=id;localStorage.setItem(TKEY(id),JSON.stringify(st));}
+  if(mode==='replace')local.forEach((_,id)=>{if(!merged.has(id))localStorage.removeItem(TKEY(id));});
+  S=migrate(merged.get(active));S.teamId=active;localStorage.removeItem(TKEY(active));
+  idxSave({teams:ids.map(id=>({id,label:teamLabel(merged.get(id))})),active});
+  LOGO=mode==='replace'?Object.assign({},data.logos||{}):Object.assign({},data.logos||{},LOGO);logoSave();
+  save(true);setSyncMeta({loadedAt:Date.now(),savedAt:Math.max(syncMeta().savedAt||0,data.savedAt||0),from:data.device});listOpen=false;statTeam=null;render();
+}
+async function syncLoadFromFolder(){const txt=await fsRead();if(!txt){toast('Keine Datei '+SYNC_FILE+' im Ordner gefunden');return;}try{syncLoadSheet(JSON.parse(txt));}catch(e){toast('Datei konnte nicht gelesen werden');}}
+function syncHTML(){
+  if(!IS_WEBAPP)return `<h3>Synchronisation</h3><p class="pending">Die Synchronisation über iCloud gibt es in der installierten Web-App (gijoehh.github.io/handball-live), nicht in der Claude-Vorschau.</p>`;
+  const m=syncMeta(),dirty=lastChange()>(m.savedAt||0)+1500;
+  return `<h3>Synchronisation über iCloud</h3>
+    <div class="facts"><div class="fact"><small>Dieses Gerät</small><b><input id="sy_dev" value="${esc(deviceName())}" aria-label="Gerätename"></b></div>
+      <div class="fact"><small>Zuletzt gesichert</small><b>${dt(m.savedAt)}${m.how?' · '+esc(m.how):''}</b></div>
+      <div class="fact"><small>Zuletzt geladen</small><b>${dt(m.loadedAt)}${m.from?' · von '+esc(m.from):''}</b></div>
+      <div class="fact"><small>Status</small><b>${dirty?'<span class="err">Änderungen nicht gesichert</span>':'alles gesichert'}</b></div></div>
+    <div class="row"><button class="tool primary" id="sy_save">In iCloud speichern</button>
+      <label class="tool filelbl" for="sy_file">Aus iCloud laden<input type="file" id="sy_file" accept=".json,application/json"></label>
+      ${FS_OK?(fsState==='ok'?`<button class="tool" id="sy_fload">Aus verbundenem Ordner laden</button><button class="tool" id="sy_fdis">Ordner trennen</button>`:fsState==='prompt'?`<button class="tool" id="sy_fre">Ordner wieder verbinden</button>`:`<button class="tool" id="sy_fcon">Ordner verbinden (automatisch speichern)</button>`):''}</div>
+    ${FS_OK&&fsState==='ok'?'<div class="pending">Ordner verbunden: Änderungen werden nach wenigen Sekunden automatisch gespeichert.</div>':''}
+    <details class="pastebox"><summary><b>So richtest du es ein</b></summary><ol class="plan">
+      <li><b>Einmalig:</b> In iCloud Drive einen Ordner „Handball Live“ anlegen. Für externe Personen: Ordner im Finder mit Rechtsklick → Teilen → Personen hinzufügen, mit „Darf Änderungen vornehmen“.</li>
+      <li><b>iPad speichern:</b> „In iCloud speichern“ → im Teilen-Menü „In Dateien sichern“ → iCloud Drive → Handball Live → Sichern, bei Nachfrage „Ersetzen“.</li>
+      <li><b>Mac mit Chrome oder Edge:</b> „Ordner verbinden“ und den iCloud-Ordner wählen. Danach speichert die App automatisch.</li>
+      <li><b>Mac mit Safari:</b> Die Datei landet im Download-Ordner. Tipp: In Safari → Einstellungen → Allgemein den Download-Ort auf den iCloud-Ordner „Handball Live“ stellen.</li>
+      <li><b>Laden:</b> „Aus iCloud laden“ und die Datei ${SYNC_FILE} wählen. Beim ersten Mal auf einem neuen Gerät „Komplett ersetzen“, danach „Zusammenführen“.</li>
+      <li><b>Regel:</b> Nach dem Spiel auf dem iPad speichern, vor der Arbeit am Mac laden – und umgekehrt. Gleichzeitig auf zwei Geräten am selben Spiel arbeiten geht nicht.</li></ol></details>`;
+}
+function syncBind(){
+  if(!IS_WEBAPP)return;
+  $('sy_dev').onchange=()=>{const v=$('sy_dev').value.trim();try{if(v)localStorage.setItem('hb-live-device',v);}catch(e){}toast('Gerätename gespeichert');};
+  $('sy_save').onclick=()=>syncSave();
+  $('sy_file').onchange=async ev=>{const f=ev.target.files[0];if(!f)return;try{syncLoadSheet(JSON.parse(await f.text()));}catch(e){toast('Datei konnte nicht gelesen werden');}};
+  if($('sy_fcon'))$('sy_fcon').onclick=async()=>{try{const h=await window.showDirectoryPicker({id:'handball-live',mode:'readwrite'});await fsSet(h);await fsHandle(true);toast('Ordner verbunden: '+h.name);window.hbAutoSync();renderSettings();}catch(e){}};
+  if($('sy_fre'))$('sy_fre').onclick=async()=>{await fsHandle(true);renderSettings();};
+  if($('sy_fdis'))$('sy_fdis').onclick=async()=>{await fsSet(null);fsState='none';toast('Ordner getrennt');renderSettings();};
+  if($('sy_fload'))$('sy_fload').onclick=()=>syncLoadFromFolder();
+}
+/* Beim Start: verbundenen Ordner prüfen und auf neuere Daten anderer Geräte hinweisen */
+(async()=>{if(!FS_OK)return;await fsHandle(false);if(fsState!=='ok'){renderCloud();return;}
+  try{const h=await fsHandle(false),fh=await h.getFileHandle(SYNC_FILE),d=JSON.parse(await (await fh.getFile()).text());
+    if(d.savedAt>(syncMeta().savedAt||0)&&d.device!==deviceName()){const b=document.createElement('div');b.className='updbar';b.id='syncBar';
+      b.innerHTML=`<span>Neuere Daten von ${esc(d.device)} (${dt(d.savedAt)})</span><button type="button">Laden</button><button type="button" class="x">Später</button>`;
+      b.querySelector('button').onclick=()=>{b.remove();syncLoadSheet(d);};b.querySelector('.x').onclick=()=>b.remove();document.body.appendChild(b);}}catch(e){}
+  renderCloud();})();
 
 S=load();
 if(!S){S=fresh();loadDemo();}
