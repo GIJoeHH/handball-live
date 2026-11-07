@@ -592,7 +592,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='35';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='36';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -2744,8 +2744,10 @@ const ptoks=name=>ptoksI(name).filter(t=>t.length>1);
 const pkey=name=>{const t=ptoks(name);return(t.length>=2?t:ptoksI(name)).slice().sort().join(' ');};
 /* gleiche Person: gleiche Namensteile, oder gleicher Vor- und Nachname (Zweitnamen egal), oder abgekürzter Nachname ("Finn H.") */
 function samePlayer(a,b){const A=ptoks(a),B=ptoks(b);if(A.length&&B.length){if(A.slice().sort().join(' ')===B.slice().sort().join(' '))return true;if(A.length>=2&&B.length>=2&&A[0]===B[0]&&A[A.length-1]===B[B.length-1])return true;}
-  const X=ptoksI(a),Y=ptoksI(b);if(X.length<2||Y.length<2||X[0]!==Y[0])return false;const la=X[X.length-1],lb=Y[Y.length-1];
-  return (la.length===1&&lb.length>1&&lb.startsWith(la))||(lb.length===1&&la.length>1&&la.startsWith(lb));}
+  const X=ptoksI(a),Y=ptoksI(b);if(X.length<2||Y.length<2)return false;
+  if(X[0]!==Y[0]){const fa=X[0],fb=Y[0],la=X[X.length-1],lb=Y[Y.length-1];return la===lb&&la.length>1&&Math.min(fa.length,fb.length)>=3&&(fa.startsWith(fb)||fb.startsWith(fa));}const la=X[X.length-1],lb=Y[Y.length-1];
+  if((la.length===1&&lb.length>1&&lb.startsWith(la))||(lb.length===1&&la.length>1&&la.startsWith(lb)))return true;
+  return false;}
 /* Rollover: zum 1. Juli wird die laufende Saison archiviert und bleibt in der Folgesaison sichtbar */
 function pdbRollover(){const D=pdb(),now=seasonNow();if(D.current===now)return false;
   if(D.current&&D.seasons[D.current]&&!D.seasons[D.current].closed){D.seasons[D.current].closed=true;D.seasons[D.current].archivedAt=Date.now();}
@@ -2770,7 +2772,7 @@ function pdbRefresh(){
 function playsThisSeason(name){const rec=pdb().seasons[seasonNow()];if(!rec)return null;return Object.values(rec.auto||{}).filter(q=>samePlayer(q.name,name));}
 function playerHistory(name){const D=pdb(),now=seasonNow(),out=[];
   for(const s of Object.keys(D.seasons).sort().reverse()){if(s===now)continue;const rec=D.seasons[s];
-    const als=q=>ptoks(q.name).length===ptoksI(q.name).length?'':` · als „${q.name}“`;
+    const fl=x=>{const t=ptoksI(x);return t[0]+' '+t[t.length-1];},als=q=>fl(q.name)===fl(name)?'':` · als „${q.name}“`;
     for(const q of Object.values(rec.auto||{}))if(samePlayer(q.name,name))out.push({season:s,...q,src:'Spielberichte'+als(q)});
     for(const [k,q] of Object.entries(rec.players||{}))if(samePlayer(q.name,name))out.push({season:s,...q,src:(q.src||'Tabelle')+als(q),_k:k});}
   return out;}
@@ -2784,7 +2786,7 @@ function openPlayer(name,team){
   h+=`<h3>Saison ${esc(now)} · Liga laut Spielberichten</h3>`+(cur.length?playerRowsHTML(cur.map(q=>({...q,src:'Spielberichte'})),false):'<p class="pending">In dieser Saison noch in keinem eingelesenen Spielbericht der Liga.</p>');
   if(!cur.length)h+=`<div class="find info"><span>Werte aus früheren Saisons werden nur angezeigt, wenn der Spieler in dieser Saison in der Liga spielt, also in einem Spielbericht dieser Saison steht.${hist.length?` Für diesen Namen ${hist.length===1?'liegt 1 älterer Eintrag':'liegen '+hist.length+' ältere Einträge'} vor.`:''}</span></div>`;
   else h+=`<h3>Frühere Saisons</h3>`+(hist.length?playerRowsHTML(hist,true):`<p class="pending">Keine älteren Werte in der Spielerdatenbank.${cur.every(q=>!q.tore)?' Torhüter fehlen in Torschützen-Tabellen meistens, weil sie keine Tore werfen.':''} Tabellen früherer Saisons lassen sich unter Einstellungen → Spielerdatenbank einlesen.</p>`);
-  h+=`<p class="pending">Zuordnung über den Namen (Vor- und Nachname, Reihenfolge egal, abgekürzte Nachnamen werden mit „als …“ gekennzeichnet). Falsche Einträge aus Tabellen lassen sich mit × löschen. Alle Werte bleiben auf diesem Gerät und in eurer Sync-Datei.</p>`;
+  h+=`<p class="pending">Zuordnung über den Namen: Vor- und Nachname, Zweitnamen egal. Kurzformen wie „Maxi“ für Maximilian oder „Finn H.“ werden erkannt und mit „als …“ gekennzeichnet. Falsche Einträge aus Tabellen lassen sich mit × löschen. Alle Werte bleiben auf diesem Gerät und in eurer Sync-Datei.</p>`;
   openSheet(h);
   $('sheet').querySelectorAll('[data-pdbrm]').forEach(b=>b.onclick=ev=>{ev.stopPropagation();const v=b.dataset.pdbrm,i=v.indexOf('|'),s=v.slice(0,i),k=v.slice(i+1),rec=pdb().seasons[s];if(!rec||!rec.players[k])return;
     const q=rec.players[k];if(!confirm(`Eintrag ${s} · ${q.team||'ohne Team'} · ${q.name} aus der Spielerdatenbank löschen?`))return;delete rec.players[k];pdbSave();toast('Eintrag gelöscht');openPlayer(name,team);});
