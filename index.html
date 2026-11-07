@@ -388,6 +388,9 @@ select.mini{font:inherit;font-size:12px;font-weight:600;color:var(--ink);backgro
 .mini.x{color:var(--muted);min-width:28px}
 .rdhl{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .rdhl .mini.x{font-size:11px;text-transform:none;letter-spacing:0}
+
+.cands{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--muted);white-space:nowrap}
+.cnum{min-width:30px;justify-content:center;padding:0 6px}
 </style>
 
 </head>
@@ -557,7 +560,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='20';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='21';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -2303,13 +2306,13 @@ function scheduleHTML(){
     <div class="tw"><table class="hbg sched"><thead><tr><th>ST</th><th>Datum</th><th>Heim</th><th>Gast</th><th class="r">Ergebnis</th><th class="r">HZ</th><th>Spielbericht</th></tr></thead><tbody>`;
   const groups=schedOwn?[{label:null,items:[...list].filter(r=>!r.guess||r.rep).sort((a,b)=>String(a.date||'9').localeCompare(String(b.date||'9')))}]
     :rounds.map(rd=>({rd,label:rd==null?'Weitere Termine (Spieltag nicht bekannt)':`Spieltag ${rd}${rd===cur?' · aktuell':''}`,cur:rd===cur,items:list.filter(x=>x.round===rd).sort((a,b)=>rd==null?String(a.date||'').localeCompare(String(b.date||'')):0)}));
-  const now=Date.now();
+  const now=Date.now(),RL=reportLinks(R);
   for(const gr of groups){if(gr.label){const nSk=gr.items.filter(x=>x.sk).length;h+=`<tr class="rdh${gr.cur?' cur':''}"><td colspan="7"><span class="rdhl">${gr.label}${nSk?`<button class="mini x" data-delrd="${gr.rd==null?'none':gr.rd}">${nSk} eingefügte Termine löschen</button>`:''}</span></td></tr>`;}
     for(const r of gr.items){const rd=r.round;const res=r.hs!=null&&r.as!=null?`${r.hs}:${r.as}`:'',us=mine(r);
       let out='';if(us&&res){const a=isOurTeam(r.home)?r.hs:r.as,b=isOurTeam(r.home)?r.as:r.hs;out=a>b?'win':a<b?'loss':'draw';}
       const canGuess=Object.values(L.games||{}).some(g=>g.report);
       const rep=r.rep?'<span class="st ok">✓ eingelesen</span>':r.link?`<a class="mini linkbtn2" href="${esc(r.link)}" target="_blank" rel="noopener">Bericht öffnen</a>${r.guess?' <span class="st">vermutet</span>':''}`
-        :r.finished&&r.round&&canGuess?`<button class="mini" data-cand="${r.round}">Bericht suchen</button>`
+        :r.round&&canGuess?RL(r)
         :r.finished&&r.round?'<span class="pending" title="Unter Daten holen einmal die gesicherte Ligaseite einlesen">Link: Ligaseite einlesen</span>'
         :r.finished&&r.sk&&!r.cup?`<select class="mini" data-setrd="${esc(r.sk)}" aria-label="Spieltag wählen"><option value="">ST wählen</option>${Array.from({length:(L.rounds&&L.rounds.total)||18},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}</select>`
         :`<span class="pending">${r.live?'läuft':r.finished?'kein Bericht':'offen'}</span>`;
@@ -2465,6 +2468,24 @@ function autoRounds(){
   save();return{rounds:r,catchup:left.length-open,open,anchors:offs.length,ok:offs.filter(o=>o===off).length,set};
 }
 function autoRoundsMsg(res){if(!res)return '';return `Spieltage erkannt: ${res.rounds} Spieltage${res.catchup?', '+res.catchup+' Nachholspiel'+(res.catchup>1?'e':'')+' zugeordnet':''}${res.open?', '+res.open+' nicht zuordenbar':''}${res.anchors?` · Kontrolle über Spielnummern: ${res.ok} von ${res.anchors} passen`:''}.`;}
+
+/* Vermutete Bericht-Links je Spiel: Ausschlussverfahren je Spieltag und gespiegelte Rückrunde */
+function reportLinks(R){
+  const L=leagueState(),half=Math.floor(((L.rounds&&L.rounds.total)||18)/2),cache={};
+  const known=R.filter(r=>r.code&&codeRound(r.code)).map(r=>({r,round:r.round||codeRound(r.code).round,order:codeRound(r.code).order}));
+  const info=rd=>{if(cache[rd])return cache[rd];const C=guessForRound(rd),taken=new Set(known.filter(k=>k.round===rd).map(k=>k.order)),mir=new Map();
+    for(const x of R.filter(x=>x.round===rd&&!x.code)){const m=known.find(k=>(k.round===rd-half||k.round===rd+half)&&matchTeam(k.r.home,x.away)&&matchTeam(k.r.away,x.home));if(m&&!taken.has(m.order))mir.set(x,m.order);}
+    return cache[rd]={C,taken,mir};};
+  const one=(c,label,note)=>`<a class="mini linkbtn2" href="${esc(c.report)}" target="_blank" rel="noopener">${label}</a>${note?` <span class="st">${note}</span>`:''}`;
+  return r=>{const I=info(r.round);if(!I.C.length)return '<span class="pending">–</span>';
+    if(r.code&&codeRound(r.code)){const c=I.C.find(c=>c.order===codeRound(r.code).order);return c?one(c,'Bericht öffnen',''):'<span class="pending">–</span>';}
+    const mo=I.mir.get(r);if(mo){const c=I.C.find(c=>c.order===mo);if(c)return one(c,'Bericht öffnen','vermutet');}
+    const usedMir=new Set([...I.mir.entries()].filter(([x])=>x!==r).map(([,o])=>o));
+    const free=I.C.filter(c=>!I.taken.has(c.order)&&!usedMir.has(c.order));
+    if(free.length===1)return one(free[0],'Bericht öffnen','vermutet');
+    if(!free.length)return '<span class="pending">–</span>';
+    return `<span class="cands" title="Eine dieser Spielnummern gehört zu diesem Spiel. Beim Einlesen ordnet die App den Bericht richtig zu.">Bericht ${free.map(c=>`<a class="mini linkbtn2 cnum" href="${esc(c.report)}" target="_blank" rel="noopener" aria-label="Spielnummer ${esc(c.code)}">${c.order}</a>`).join('')}</span>`;};
+}
 
 S=load();
 if(!S){S=fresh();loadDemo();}
