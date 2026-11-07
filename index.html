@@ -268,6 +268,8 @@ th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .cval-t{font-weight:700;display:inline-block;width:14px}
 @media (max-width:560px){.crow{grid-template-columns:auto minmax(0,1fr)}.crow .chk,.crow .row{grid-column:2}}
 .players .btn:disabled{opacity:.3}
+/* Installierte App (Home-Bildschirm): Abstand zur Statusleiste und zu den Fenstersymbolen des iPad */
+@media (display-mode: standalone){body{padding-top:calc(env(safe-area-inset-top,0px) + 30px)}}
 </style>
 
 </head>
