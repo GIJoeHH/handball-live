@@ -393,6 +393,9 @@ select.mini{font:inherit;font-size:12px;font-weight:600;color:var(--ink);backgro
 .cnum{min-width:30px;justify-content:center;padding:0 6px}
 
 .stsel{min-width:52px}
+
+.stbtn{cursor:pointer;font:inherit;font-size:12px;font-weight:700}
+td.strong{font-weight:700;color:var(--ink)}
 </style>
 
 </head>
@@ -562,7 +565,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='24';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='25';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1121,7 +1124,7 @@ function reportSheet(){
   openSheet(h);
   $('r_file').onchange=async ev=>{const f=ev.target.files[0];if(!f)return;$('r_status').textContent='Lese Spielbericht …';
     try{const rep=await readPdf(f);if(!repGoals(rep).length&&!rep.roster.heim.length)throw new Error('Im PDF wurden weder Tore noch Kader gefunden. Ist es ein Spielbericht von handball.net?');
-      S.report=rep;S.reportOurs=null;if(leagueGame()&&!isCup(rep))addToLeague(rep);save();reportSheet();toast('Spielbericht gelesen');}
+      S.report=rep;S.reportOurs=null;if(leagueGame()&&!isCup(rep))addToLeague(rep);if(rep.meta.nr)pdfPut(rep.meta.nr,f);save();reportSheet();toast('Spielbericht gelesen');}
     catch(err){$('r_status').innerHTML='<span class="err">'+esc(err.message||err)+'</span>';}};
   if(!R)return;
   document.querySelectorAll('[name=r_ours]').forEach(r=>r.onchange=()=>{S.reportOurs=r.value;save();});
@@ -1628,8 +1631,8 @@ function scoutCard(){
   if(!A.n)return h+'</section>';
   h+=`<div class="chips">${sc.reports.map((r,i)=>`<span class="chip">${esc(r.datum)} · ${r.hg==='heim'?'gegen':'bei'} ${esc(r.gegner)} <b class="num">${r.gf}:${r.ga}</b><button class="x" data-scdel="${i}" aria-label="Bericht entfernen">×</button></span>`).join('')}</div>
     <div class="facts">
-      <div class="fact"><small>Spiele · Bilanz</small><b>${A.n} · ${A.w} S, ${A.d} U, ${A.l} N</b></div>
-      <div class="fact"><small>Ø Tore : Gegentore</small><b class="num">${f1(A.gf)} : ${f1(A.ga)}</b></div>
+      <div class="fact"><small>Spiele · Bilanz</small><b>${A.n} · ${A.w} S, ${A.d} U, ${A.l} N · ${2*A.w+A.d}:${2*A.l+A.d}</b></div>
+      <div class="fact"><small>Ø Tore : Gegentore · Ø Diff</small><b class="num">${f1(A.gf)} : ${f1(A.ga)} · ${A.gf-A.ga>0?'+':''}${f1(A.gf-A.ga)}</b></div>
       <div class="fact"><small>Ø Tore 1. / 2. HZ</small><b class="num">${f1(A.h1)} / ${f1(A.h2)}</b></div>
       <div class="fact"><small>Ø Zeitstrafen</small><b class="num">${f1(A.pens)}</b></div>
       <div class="fact"><small>7m gesamt</small><b class="num">${A.g7}/${A.a7}${A.a7?' · '+pct(A.g7,A.a7):''}</b></div></div>
@@ -1708,7 +1711,7 @@ function addToLeague(R){
   if(!R||!R.meta||(!R.meta.heim&&!R.meta.gast))return false;
   const L=leagueState(),nr=R.meta.nr||((R.meta.datum||'')+'|'+R.meta.heim);
   const ex=L.reports[nr];
-  L.reports[nr]={endstand:R.meta.endstand||'',nr,datum:(R.meta.datum||'').split(',')[0],dk:dateKey(R.meta.datum),spieltag:R.meta.spieltag||null,klasse:R.meta.klasse||'',heim:repSummary(R,'heim'),gast:repSummary(R,'gast')};
+  L.reports[nr]={ev:compactEvents(R),endstand:R.meta.endstand||'',nr,datum:(R.meta.datum||'').split(',')[0],dk:dateKey(R.meta.datum),spieltag:R.meta.spieltag||null,klasse:R.meta.klasse||'',heim:repSummary(R,'heim'),gast:repSummary(R,'gast')};
   L.updated=Date.now();if(!ex)return true;
   const old=ex.heim||{},nw=L.reports[nr].heim;return (old.gf!==nw.gf||old.ga!==nw.ga||!ex.endstand)?'upd':false;
 }
@@ -1739,7 +1742,7 @@ function leagueTable(){
     const dk=String(e.date||'').slice(0,10).replace(/-/g,''),datum=e.date?new Date(e.date).toLocaleDateString('de-DE'):'';
     for(const [nm,opp,gf,ga,hg] of [[e.home,e.away,e.hs,e.as,'heim'],[e.away,e.home,e.as,e.hs,'gast']]){const t=Object.values(T).find(x=>matchTeam(x.name,nm))||team(nm);book(t,gf,ga);
       t.games.push({team:nm,gegner:opp,hg,gf,ga,h1f:null,h1a:null,pens:null,to:null,roster:[],datum,dk,spieltag:null,nr:'plan|'+dk+'|'+normT(nm)});}}
-  return Object.values(T).map(t=>({...t,pts:2*t.s+t.u,diff:t.gf-t.ga,games:t.games.sort((a,b)=>(a.spieltag||0)-(b.spieltag||0)||a.dk.localeCompare(b.dk))})).sort((a,b)=>b.pts-a.pts||b.diff-a.diff||b.gf-a.gf||a.name.localeCompare(b.name));
+  return sortLeague(Object.values(T).map(t=>({...t,pts:2*t.s+t.u,diff:t.gf-t.ga,games:t.games.sort((a,b)=>(a.spieltag||0)-(b.spieltag||0)||a.dk.localeCompare(b.dk))})));
 }
 function teamAgg(t){
   const n=t.sp,players=Object.values(t.P).sort((a,b)=>b.tore-a.tore||b.games-a.games),avg=v=>n?v/n:0;
@@ -1785,14 +1788,15 @@ function renderStats(){
     <div class="pending">Eigene App-Daten: ${games.length} Spiel${games.length===1?'':'e'}${(S.archive||[]).length?' im Archiv':''}</div>
     ${(()=>{const g=nextOwnGame();if(!g)return '';const opp=isOurTeam(g.home)?g.away:g.home;return `<div class="nextg">Nächstes Spiel: <b>${esc(gameDate(g.date))}</b> ${isOurTeam(g.home)?'gegen':'bei'} ${logoImg(opp,'sm')}<b>${esc(opp)}</b>${g.field?' · '+esc(g.field):''} <button class="mini" id="st_next">Vorbereiten</button></div>`;})()}</div>
     <div class="row"><button class="tool primary" id="st_get">Daten holen</button></div></section>`;
-  h+=`<div class="tabs stsub" role="tablist">${[['tabelle','Tabelle & Teams'],['plan','Spielplan & Ergebnisse'],['eigen','Eigene Daten']].map(([k,l])=>`<button class="tab${statSub===k?' on':''}" data-ssub="${k}" role="tab" aria-selected="${statSub===k}">${l}</button>`).join('')}</div>`;
+  h+=`<div class="tabs stsub" role="tablist">${[['tabelle','Tabelle & Teams'],['torjaeger','Torjäger'],['plan','Spielplan & Ergebnisse'],['eigen','Eigene Daten']].map(([k,l])=>`<button class="tab${statSub===k?' on':''}" data-ssub="${k}" role="tab" aria-selected="${statSub===k}">${l}</button>`).join('')}</div>`;
   if(statSub==='plan')h+=scheduleHTML();
+  else if(statSub==='torjaeger')h+=scorerHTML();
   else if(statSub==='eigen'){h+=games.length?ourTrend(games):'<section class="card"><p class="pending">Noch keine eigenen App-Daten. Spiele kommen über „Spiel abschließen“ im Reiter Analyse ins Archiv.</p></section>';}
   else if(!reps.length&&!T.length)h+=`<section class="card"><p>Noch keine Spielberichte in der Statistik. Tippe auf <b>Daten holen</b>: Spielplan auf handball.net öffnen, die Spielberichte als PDF herunterladen und hier gesammelt einlesen. Berichte aus dem Gegner-Scouting und aus der Analyse landen automatisch ebenfalls hier.</p></section>`;
   else if(statSub==='tabelle'){
     h+=`<section class="card"><h2 class="ch">Tabelle</h2><div class="pending">Aus eingelesenen Spielberichten und Ergebnissen von handball.net berechnet (2 Punkte pro Sieg; das offizielle Endergebnis zählt). Fehlen Berichte, weicht sie von der offiziellen Tabelle ab. Team antippen für Details.</div>
-      <div class="tw"><table class="ltable"><thead><tr><th>#</th><th>Team</th><th class="r">Sp</th><th class="r">S</th><th class="r">U</th><th class="r">N</th><th class="r">Tore</th><th class="r">Diff</th><th class="r">Pkt</th><th class="r">Ø Tore</th><th class="r">Ø Gegent.</th></tr></thead><tbody>
-      ${T.map((t,i)=>`<tr class="${isOurTeam(t.name)?'ours':''}${statTeam===normT(t.name)?' selrow':''}"><td class="num">${i+1}</td><td><button class="pbtn" data-steam="${esc(normT(t.name))}">${logoImg(t.name,'sm')}${esc(t.name)}</button></td><td class="r num">${t.sp}</td><td class="r num">${t.s}</td><td class="r num">${t.u}</td><td class="r num">${t.n}</td><td class="r num">${t.gf}:${t.ga}</td><td class="r num">${t.diff>0?'+':''}${t.diff}</td><td class="r num"><b>${t.pts}</b></td><td class="r num">${f1(t.gf/t.sp)}</td><td class="r num">${f1(t.ga/t.sp)}</td></tr>`).join('')}
+      <div class="tw"><table class="ltable"><thead><tr><th>#</th><th>Team</th><th class="r">Sp</th><th class="r">S</th><th class="r">U</th><th class="r">N</th><th class="r">Tore</th><th class="r">Diff</th><th class="r">Punkte</th><th class="r">Ø Tore</th><th class="r">Ø Gegent.</th><th class="r">Ø Diff</th></tr></thead><tbody>
+      ${T.map((t,i)=>`<tr class="${isOurTeam(t.name)?'ours':''}${statTeam===normT(t.name)?' selrow':''}"><td class="num">${i+1}</td><td><button class="pbtn" data-steam="${esc(normT(t.name))}">${logoImg(t.name,'sm')}${esc(t.name)}</button></td><td class="r num">${t.sp}</td><td class="r num">${t.s}</td><td class="r num">${t.u}</td><td class="r num">${t.n}</td><td class="r num">${t.gf}:${t.ga}</td><td class="r num">${t.diff>0?'+':''}${t.diff}</td><td class="r num"><b>${ptsStr(t)}</b></td><td class="r num">${f1(t.gf/t.sp)}</td><td class="r num">${f1(t.ga/t.sp)}</td><td class="r num">${t.diff>0?'+':''}${f1(t.diff/t.sp)}</td></tr>`).join('')}
       </tbody></table></div></section>`;
     const t=T.find(x=>normT(x.name)===statTeam);
     if(t)h+=teamDetail(t,maxDay,games);
@@ -1802,6 +1806,8 @@ function renderStats(){
   $('view-statistik').innerHTML=h;
   $('st_get').onclick=()=>fetchSheet();
   document.querySelectorAll('[data-ssub]').forEach(b=>b.onclick=()=>{statSub=b.dataset.ssub;renderStats();});
+  bindScorer();
+  document.querySelectorAll('[data-rsum]').forEach(b=>b.onclick=()=>reportSummary(b.dataset.rsum));
   if($('sch_own'))$('sch_own').onchange=()=>{schedOwn=$('sch_own').checked;renderStats();};
   document.querySelectorAll('[data-setrd]').forEach(s=>s.onchange=()=>{const e=(leagueState().sched||{})[s.dataset.setrd];if(e){e.round=s.value?+s.value:null;e.roundManual=!!s.value;save();toast(s.value?'Spieltag '+s.value+' gesetzt':'Spieltag entfernt');renderStats();}});
   document.querySelectorAll('[data-cand]').forEach(b=>b.onclick=()=>candSheet(+b.dataset.cand));
@@ -1820,15 +1826,15 @@ function teamDetail(t,maxDay,games){
   const A=teamAgg(t),I=scoutInsights(A),miss=missingDays(t,maxDay),ours=isOurTeam(t.name);
   const oe=oppEntry(t.name);
   let h=`<section class="card"><div class="sheethead"><h2 class="ch">${logoImg(t.name,'md')}${esc(t.name)}</h2><span class="row">${linkBtn(ours?linksOf().team:(oe&&oe.url),'Teamspielplan öffnen')}${ours?'':'<button class="tool" id="st_prep">Als nächsten Gegner vorbereiten</button>'}</span></div>
-    <div class="facts"><div class="fact"><small>Bilanz</small><b>${t.s} S, ${t.u} U, ${t.n} N · ${t.pts} Pkt</b></div>
-      <div class="fact"><small>Ø Tore : Gegentore</small><b class="num">${f1(A.gf)} : ${f1(A.ga)}</b></div>
+    <div class="facts"><div class="fact"><small>Bilanz</small><b>${t.s} S, ${t.u} U, ${t.n} N · ${ptsStr(t)} Punkte</b></div>
+      <div class="fact"><small>Ø Tore : Gegentore · Ø Diff</small><b class="num">${f1(A.gf)} : ${f1(A.ga)} · ${A.gf-A.ga>0?'+':''}${f1(A.gf-A.ga)}</b></div>
       <div class="fact"><small>Ø Tore 1. / 2. HZ</small><b class="num">${f1(A.h1)} / ${f1(A.h2)}</b></div>
       <div class="fact"><small>Ø Gegentore 1. / 2. HZ</small><b class="num">${f1(A.h1a)} / ${f1(A.h2a)}</b></div>
       <div class="fact"><small>Ø Zeitstrafen · 7m</small><b class="num">${f1(A.pens)} · ${A.g7}/${A.a7}</b></div></div>
     ${miss.length?`<div class="pending">Spieltage ohne Bericht: ${miss.join(', ')} (fehlt noch oder spielfrei)</div>`:''}
     ${I.map(([s,x])=>`<div class="find ${s}"><span>${esc(x)}</span></div>`).join('')}
     <div class="cols2"><div><h3>Spiele</h3><div class="tw"><table><thead><tr><th>ST</th><th>Datum</th><th>Gegner</th><th class="r">Ergebnis</th></tr></thead><tbody>
-      ${t.games.map(g=>`<tr><td class="num">${g.spieltag||'–'}</td><td class="num">${esc(g.datum)}</td><td>${g.hg==='heim'?'gegen':'bei'} ${esc(g.gegner)}</td><td class="r num ${g.gf>g.ga?'win':g.gf<g.ga?'loss':''}">${g.gf}:${g.ga}</td></tr>`).join('')}</tbody></table></div></div>
+      ${t.games.map(g=>`<tr><td class="num">${g.spieltag||'–'}</td><td class="num">${esc(g.datum)}</td><td>${g.hg==='heim'?'gegen':'bei'} ${esc(g.gegner)}</td><td class="r num ${g.gf>g.ga?'win':g.gf<g.ga?'loss':''}">${g.nr&&leagueState().reports[g.nr]?`<button class="pbtn" data-rsum="${esc(g.nr)}">${g.gf}:${g.ga}</button>`:g.gf+':'+g.ga}</td></tr>`).join('')}</tbody></table></div></div>
     <div><h3>Torschützen</h3><div class="tw"><table><thead><tr><th>Nr.</th><th>Name</th><th class="r">Sp</th><th class="r">Tore</th><th class="r">Ø</th><th class="r">7m</th></tr></thead><tbody>
       ${A.players.filter(p=>p.tore).slice(0,12).map(p=>`<tr><td class="num">${p.nr}</td><td>${esc(p.name)}</td><td class="r num">${p.games}</td><td class="r num">${p.tore}</td><td class="r num">${f1(p.tore/p.games)}</td><td class="r num">${p.a7?p.g7+'/'+p.a7:'–'}</td></tr>`).join('')||'<tr><td colspan="6" class="pending">Keine Torschützen gelesen.</td></tr>'}</tbody></table></div></div></div>`;
   if(!ours){
@@ -1903,7 +1909,7 @@ function fetchSheet(){
     fetchSheet();toast(`${G} Spiele${SC?', '+SC+' Termine':''} und ${T} Teams übernommen${N?', '+N+' neue Gegner':''}${bad.length?' · '+bad.length+' Datei(en) nicht lesbar':''}`);if(view==='statistik')renderStats();};
   $('fx_files').onchange=async ev=>{const files=[...ev.target.files];if(!files.length)return;const st=$('fx_status');let cup=0,upd=0,add=0,dup=0;const errs=[];
     for(let i=0;i<files.length;i++){st.textContent=`Lese Bericht ${i+1} von ${files.length} …`;
-      try{const R=await readPdf(files[i]);if(!repGoals(R).length&&!R.roster.heim.length)throw new Error('kein Spielbericht erkannt');if(isCup(R)){cup++;continue;}{const r=addToLeague(R);if(r==='upd')upd++;else if(r)add++;else dup++;}}catch(e){errs.push(files[i].name+': '+(e.message||e));}}
+      try{const R=await readPdf(files[i]);if(!repGoals(R).length&&!R.roster.heim.length)throw new Error('kein Spielbericht erkannt');if(isCup(R)){cup++;continue;}{const r=addToLeague(R);if(r==='upd')upd++;else if(r)add++;else dup++;if(R.meta.nr)await pdfPut(R.meta.nr,files[i]);}}catch(e){errs.push(files[i].name+': '+(e.message||e));}}
     save();st.innerHTML=`<b>${add} neu</b>${upd?`, <b>${upd} korrigiert</b>`:''}, ${dup} schon vorhanden${cup?`, ${cup} Pokalspiel${cup>1?'e':''} nicht in die Tabelle`:''}${errs.length?`, <span class="err">${errs.length} nicht lesbar</span><br>${esc(errs.join(' · '))}`:''}`;
     toast(`${add} Spielbericht${add===1?'':'e'} ergänzt${upd?', '+upd+' korrigiert':''}`);if(view==='statistik')renderStats();};
 }
@@ -2309,7 +2315,7 @@ function scheduleHTML(){
   for(const r of own){const us=isOurTeam(r.home)?r.hs:r.as,th=isOurTeam(r.home)?r.as:r.hs;if(us>th)w++;else if(us===th)d++;else l++;}
   const rounds=[...new Set(list.map(r=>r.round))].sort((a,b)=>(a==null?99:a)-(b==null?99:b)),cur=L.rounds&&L.rounds.current,total=L.rounds&&L.rounds.total;
   let h=`<section class="card"><div class="sheethead"><h2 class="ch">Spielplan & Ergebnisse</h2><label class="check"><input type="checkbox" id="sch_own" ${schedOwn?'checked':''}> nur ${esc(S.cfg.nameH)}</label></div>
-    <div class="pending">${esc(S.cfg.nameH)}: <b>${own.length} Spiele · ${w} S, ${d} U, ${l} N</b> (aus den vorhandenen Daten)${total?` · Spieltag ${cur||'?'} von ${total}`:''}</div>
+    <div class="pending">${esc(S.cfg.nameH)}: <b>${own.length} Spiele · ${w} S, ${d} U, ${l} N · ${2*w+d}:${2*l+d} Punkte</b> (aus den vorhandenen Daten)${total?` · Spieltag ${cur||'?'} von ${total}`:''}</div>
     <div class="tw"><table class="hbg sched"><thead><tr><th>ST</th><th>Datum</th><th>Heim</th><th>Gast</th><th class="r">Ergebnis</th><th class="r">HZ</th><th>Spielbericht</th></tr></thead><tbody>`;
   const groups=schedOwn?[{label:null,items:[...list].filter(r=>!r.guess||r.rep).sort((a,b)=>String(a.date||'9').localeCompare(String(b.date||'9')))}]
     :rounds.map(rd=>({rd,label:rd==null?'Weitere Termine (Spieltag nicht bekannt)':`Spieltag ${rd}${rd===cur?' · aktuell':''}`,cur:rd===cur,items:list.filter(x=>x.round===rd).sort((a,b)=>rd==null?String(a.date||'').localeCompare(String(b.date||'')):0)}));
@@ -2318,7 +2324,7 @@ function scheduleHTML(){
     for(const r of gr.items){const rd=r.round;const res=r.hs!=null&&r.as!=null?`${r.hs}:${r.as}`:'',us=mine(r);
       let out='';if(us&&res){const a=isOurTeam(r.home)?r.hs:r.as,b=isOurTeam(r.home)?r.as:r.hs;out=a>b?'win':a<b?'loss':'draw';}
       const canGuess=Object.values(L.games||{}).some(g=>g.report);
-      const rep=r.rep?'<span class="st ok">✓ eingelesen</span>':r.link?`<a class="mini linkbtn2" href="${esc(r.link)}" target="_blank" rel="noopener">Bericht öffnen</a>${r.guess?' <span class="st">vermutet</span>':''}`
+      const rep=r.rep?`<button class="st ok stbtn" data-rsum="${esc(r.rep.nr)}" title="Zusammenfassung und PDF">✓ eingelesen</button>`:r.link?`<a class="mini linkbtn2" href="${esc(r.link)}" target="_blank" rel="noopener">Bericht öffnen</a>${r.guess?' <span class="st">vermutet</span>':''}`
         :r.round&&canGuess?RL(r)
         :r.finished&&r.round?'<span class="pending" title="Unter Daten holen einmal die gesicherte Ligaseite einlesen">Link: Ligaseite einlesen</span>'
         :r.finished&&r.sk&&!r.cup?'<span class="pending">Spieltag links wählen</span>':false?`<select class="mini" data-setrd="${esc(r.sk)}" aria-label="Spieltag wählen"><option value="">ST wählen</option>${Array.from({length:(L.rounds&&L.rounds.total)||18},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}</select>`
@@ -2365,8 +2371,8 @@ function oppSelectHTML(){
 function oppInfoHTML(){
   const c=S.cfg,tp=teamPlayers(c.nameG);if(!tp)return '';
   const A=teamAgg(tp.tt),I=scoutInsights(A);
-  return `<div class="oppinfo"><div class="facts"><div class="fact"><small>Bilanz</small><b>${tp.tt.s} S, ${tp.tt.u} U, ${tp.tt.n} N · Platz ${leagueTable().findIndex(x=>normT(x.name)===normT(tp.tt.name))+1}</b></div>
-    <div class="fact"><small>Ø Tore : Gegentore</small><b class="num">${f1(A.gf)} : ${f1(A.ga)}</b></div><div class="fact"><small>Ø Tore 1. / 2. HZ</small><b class="num">${f1(A.h1)} / ${f1(A.h2)}</b></div>
+  return `<div class="oppinfo"><div class="facts"><div class="fact"><small>Bilanz</small><b>${tp.tt.s} S, ${tp.tt.u} U, ${tp.tt.n} N · ${ptsStr(tp.tt)} · Platz ${leagueTable().findIndex(x=>normT(x.name)===normT(tp.tt.name))+1}</b></div>
+    <div class="fact"><small>Ø Tore : Gegentore · Ø Diff</small><b class="num">${f1(A.gf)} : ${f1(A.ga)} · ${A.gf-A.ga>0?'+':''}${f1(A.gf-A.ga)}</b></div><div class="fact"><small>Ø Tore 1. / 2. HZ</small><b class="num">${f1(A.h1)} / ${f1(A.h2)}</b></div>
     <div class="fact"><small>7m · Ø Zeitstrafen</small><b class="num">${A.g7}/${A.a7} · ${f1(A.pens)}</b></div></div>
     ${I.map(([s,x])=>`<div class="find ${s}"><span>${esc(x)}</span></div>`).join('')}
     <div class="pending">Aus ${tp.tt.sp} Spiel${tp.tt.sp===1?'':'en'} (Spielberichte und handball.net). Kader und Schlüsselspieler wurden daraus vorbelegt.</div></div>`;
@@ -2508,6 +2514,65 @@ function reportLinks(R){
 }
 
 function liveNow(g){if(!g||!g.live||g.finished)return false;const t=new Date(g.date).getTime();return !isNaN(t)&&Date.now()-t<3*36e5&&Date.now()>=t-15*6e4;}
+
+/* ---------- Punkte im Format 10:2, Tabellensortierung, Torjäger, Spielbericht-Zusammenfassung ---------- */
+const ptsStr=t=>`${2*t.s+t.u}:${2*t.n+t.u}`;
+function sortLeague(arr){
+  const byPts=new Map();for(const t of arr){const k=t.pts;if(!byPts.has(k))byPts.set(k,[]);byPts.get(k).push(t);}
+  const out=[];
+  for(const k of [...byPts.keys()].sort((a,b)=>b-a)){const grp=byPts.get(k);
+    if(grp.length>1){const names=grp.map(t=>t.name);
+      for(const t of grp){let p=0,gf=0,ga=0;for(const g of t.games){if(!names.some(nm=>matchTeam(nm,g.gegner)))continue;gf+=g.gf;ga+=g.ga;p+=g.gf>g.ga?2:g.gf===g.ga?1:0;}t.h2h={p,d:gf-ga};}}
+    grp.sort((a,b)=>(grp.length>1?(b.h2h.p-a.h2h.p)||(b.h2h.d-a.h2h.d):0)||b.diff-a.diff||b.gf-a.gf||a.name.localeCompare(b.name));
+    out.push(...grp);}
+  return out;
+}
+let scorerSort='tore',scorerOwn=false,scorerAll=false;
+function scorerList(){
+  const out=[];for(const t of leagueTable())for(const p of Object.values(t.P||{}))out.push({...p,team:t.name,teamGames:t.sp});
+  return out;
+}
+function scorerHTML(){
+  let L=scorerList();if(!L.length)return `<section class="card"><p class="pending">Noch keine Torschützen. Spielberichte unter Daten holen einlesen.</p></section>`;
+  if(scorerOwn)L=L.filter(p=>isOurTeam(p.team));
+  const minG=2,sorters={tore:(a,b)=>b.tore-a.tore||b.tore/b.games-a.tore/a.games,spiele:(a,b)=>b.games-a.games||b.tore-a.tore,schnitt:(a,b)=>b.tore/b.games-a.tore/a.games||b.tore-a.tore};
+  let list=L.slice();if(scorerSort==='schnitt')list=list.filter(p=>p.games>=minG);list.sort(sorters[scorerSort]);
+  const shown=scorerAll?list:list.slice(0,25);
+  return `<section class="card"><div class="sheethead"><h2 class="ch">Torjäger</h2><div class="seg">${[['tore','Meiste Tore'],['spiele','Meiste Spiele'],['schnitt','Ø Tore pro Spiel']].map(([k,l])=>`<button class="tab${scorerSort===k?' on':''}" data-ssort="${k}">${l}</button>`).join('')}</div></div>
+    <div class="row"><label class="check"><input type="checkbox" id="sc_own" ${scorerOwn?'checked':''}> nur ${esc(S.cfg.nameH)}</label><span class="pending">${scorerSort==='schnitt'?`Ø nur für Spieler mit mindestens ${minG} Spielen. `:''}Spiele = Einsätze laut Spielbericht.</span></div>
+    <div class="tw"><table class="ltable"><thead><tr><th>#</th><th>Nr.</th><th>Name</th><th>Team</th><th class="r">Spiele</th><th class="r">Tore</th><th class="r">Ø</th><th class="r">7m</th></tr></thead><tbody>
+    ${shown.map((p,i)=>`<tr class="${isOurTeam(p.team)?'ours':''}"><td class="num">${i+1}</td><td class="num">${p.nr}</td><td>${esc(p.name||'')}</td><td>${logoImg(p.team,'sm')}${esc(p.team)}</td><td class="r num${scorerSort==='spiele'?' strong':''}">${p.games}</td><td class="r num${scorerSort==='tore'?' strong':''}">${p.tore}</td><td class="r num${scorerSort==='schnitt'?' strong':''}">${f1(p.tore/p.games)}</td><td class="r num">${p.a7?p.g7+'/'+p.a7:'–'}</td></tr>`).join('')}
+    </tbody></table></div>${list.length>25?`<div class="row"><button class="tool" id="sc_all">${scorerAll?'Nur Top 25':'Alle '+list.length+' anzeigen'}</button></div>`:''}</section>`;
+}
+function bindScorer(){
+  document.querySelectorAll('[data-ssort]').forEach(b=>b.onclick=()=>{scorerSort=b.dataset.ssort;renderStats();});
+  if($('sc_own'))$('sc_own').onchange=()=>{scorerOwn=$('sc_own').checked;renderStats();};
+  if($('sc_all'))$('sc_all').onclick=()=>{scorerAll=!scorerAll;renderStats();};
+}
+/* Spielbericht-PDFs im Gerät speichern (IndexedDB), Zusammenfassung aus den gelesenen Daten */
+function pdfDb(){return new Promise(res=>{try{const r=indexedDB.open('hb-live-pdf',1);r.onupgradeneeded=()=>r.result.createObjectStore('p');r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});}
+async function pdfPut(code,file){if(!code||!file)return;const d=await pdfDb();if(!d)return;await new Promise(res=>{const t=d.transaction('p','readwrite');t.objectStore('p').put(file,code);t.oncomplete=res;t.onerror=res;});}
+async function pdfGet(code){const d=await pdfDb();if(!d)return null;return new Promise(res=>{const q=d.transaction('p').objectStore('p').get(code);q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);});}
+function compactEvents(R){return R.events.filter(e=>['goal','goal7','miss7','pen','dq','timeout','half'].includes(e.kind)).map(e=>({t:e.t,k:e.kind,team:e.team,nr:e.nr,st:e.stand}));}
+async function reportSummary(code){
+  const L=leagueState(),r=(L.reports||{})[code];if(!r){toast('Bericht nicht gefunden');return;}
+  const pdf=await pdfGet(code),H=r.heim,G=r.gast,ht=r.ev&&r.ev.find(e=>e.k==='half')?r.ev.find(e=>e.k==='half').t:null;
+  const nm=(side,nr)=>{const p=((side==='heim'?H:G).roster||[]).find(p=>p.nr===nr);return p?p.name:'';};
+  const scorers=x=>[...(x.roster||[])].filter(p=>p.tore).sort((a,b)=>b.tore-a.tore).map(p=>`Nr. ${p.nr} ${esc(p.name)} <b>${p.tore}</b>${p.m7?' ('+p.m7+')':''}`).join(' · ')||'–';
+  let runs='';if(r.ev){let best={heim:0,gast:0},cur=null,k=0;for(const e of r.ev.filter(e=>e.k==='goal'||e.k==='goal7')){if(e.team===cur)k++;else{cur=e.team;k=1;}if(k>best[cur])best[cur]=k;}runs=`Längster Lauf: ${esc(H.team)} ${best.heim}, ${esc(G.team)} ${best.gast}`;}
+  const ev=(r.ev||[]).filter(e=>e.k!=='half'||true);
+  const label={goal:'Tor',goal7:'7m-Tor',miss7:'7m verworfen',pen:'2 Minuten',dq:'Disqualifikation',timeout:'Auszeit',half:'Halbzeit'};
+  openSheet(head(`${esc(H.team)} ${H.gf}:${H.ga} ${esc(G.team)}`)+`<div class="facts">
+      <div class="fact"><small>Datum · Spieltag</small><b>${esc(r.datum||'')}${r.spieltag?' · ST '+r.spieltag:''}</b></div>
+      <div class="fact"><small>Halbzeit</small><b>${H.h1f!=null?H.h1f+':'+H.h1a:'–'}</b></div>
+      <div class="fact"><small>Zeitstrafen</small><b>${H.pens??'–'} : ${G.pens??'–'}</b></div>
+      <div class="fact"><small>Spielnummer</small><b>${esc(code)}</b></div></div>
+    <div class="pending"><b>Torschützen ${esc(H.team)}:</b> ${scorers(H)}</div><div class="pending"><b>Torschützen ${esc(G.team)}:</b> ${scorers(G)}</div>
+    ${runs?`<div class="pending">${runs}</div>`:''}
+    ${r.ev?`<details class="pastebox"><summary><b>Spielverlauf</b></summary><div class="log">${ev.map(e=>`<div><span class="s ${e.team==='heim'?'H':e.team==='gast'?'G':'X'}"></span><span class="t num">${fmt(e.t)}</span><span>${e.st?'<b>'+esc(e.st)+'</b> · ':''}${label[e.k]||e.k}${e.team?' · '+esc(e.team==='heim'?H.team:G.team):''}${e.nr!=null?' · Nr. '+e.nr+' '+esc(nm(e.team,e.nr)):''}</span></div>`).join('')}</div></details>`:'<p class="pending">Den Spielverlauf zeigt die App, nachdem der Bericht einmal neu eingelesen wurde.</p>'}
+    <div class="row">${pdf?'<button class="tool primary" id="rs_pdf">PDF öffnen</button>':'<span class="pending">PDF nicht auf diesem Gerät gespeichert (wird ab jetzt beim Einlesen gespeichert).</span>'}<button class="tool" data-close>Schließen</button></div>`);
+  if(pdf)$('rs_pdf').onclick=()=>{const u=URL.createObjectURL(pdf),a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(u);},60000);};
+}
 
 S=load();
 if(!S){S=fresh();loadDemo();}
