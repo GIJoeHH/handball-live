@@ -334,6 +334,27 @@ td.win{color:var(--good);font-weight:700} td.loss{color:var(--def);font-weight:7
 .brandlogo{display:flex;align-items:center;justify-content:center;height:46px;width:56px;flex:none}
 .brandlogo img{max-height:46px;max-width:56px;width:auto;height:auto;object-fit:contain;display:block}
 @media (max-width:640px){.brandlogo{height:38px;width:44px}.brandlogo img{max-height:38px;max-width:44px}}
+
+.goal{width:100%;max-width:340px;height:auto;display:block;margin:0 auto;touch-action:manipulation}
+.goal .gpost{fill:none;stroke:var(--def);stroke-width:8}
+.goal .gnet{fill:var(--surface-2);stroke:var(--line)}
+.goal .gz rect{fill:var(--surface);stroke:var(--line);stroke-width:1.5}
+.goal .gz{cursor:pointer}
+.goal .gz.sel rect{fill:var(--ink);stroke:var(--ink)}
+.goal .gzl{font-family:var(--font-body);font-size:13px;font-weight:600;fill:var(--muted);text-anchor:middle;dominant-baseline:central;pointer-events:none}
+.goal .gz.sel .gzl{fill:var(--surface)}
+.goal .gz:focus-visible rect{stroke:var(--att);stroke-width:3}
+.goal.map .gz{cursor:default}
+.goal.map .gz rect{fill:var(--att)}
+.goal .gzt{font-family:var(--font-display);font-size:22px;font-weight:700;fill:var(--ink);text-anchor:middle;dominant-baseline:central}
+.goal .gzs{font-family:var(--font-body);font-size:12px;fill:var(--ink);text-anchor:middle;dominant-baseline:central}
+.gkchip{max-width:60%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gkcard{display:grid;gap:8px;border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--surface-2);margin-bottom:10px}
+.gkhead{display:grid;gap:2px}
+.find.info{background:var(--surface-2)}
+
+.goal .gz.hi .gzt,.goal .gz.hi .gzs{fill:#fff}
+.goal.map .gz:not(.hi) .gzt{fill:var(--muted)}
 </style>
 
 </head>
@@ -401,11 +422,13 @@ window.hbHardReload=async function(){
       <div class="grid g2" id="plays"></div>
     </section>
     <section class="card" id="posCard">
-      <div class="label"><span><span class="stepn">2</span>Wurfort · Pflicht</span></div>
+      <div class="label"><span><span class="stepn">2</span>Wurfort · Pflicht</span><button class="mini gkchip" id="gkChip"></button></div>
       <svg class="court" id="court" viewBox="0 0 400 260" role="group" aria-label="Wurfort antippen"></svg>
       <div class="posrow"><span class="pending">Genau dort antippen, wo geworfen wurde.</span><button class="btn" id="btn7m">Siebenmeter</button></div>
       <div class="label"><span><span class="stepn">3</span>Wurfqualität</span></div>
       <div class="grid g2" id="quality"></div>
+      <div class="label"><span><span class="stepn">3</span>Wurfziel · optional · Sicht des Werfers</span></div>
+      <svg class="goal" id="goalPick" viewBox="0 0 300 206" role="group" aria-label="Wurfziel antippen"></svg>
     </section>
     <section class="card col3">
       <div class="label"><span><span class="stepn">4</span><span id="playerLabel">Werfer</span></span></div>
@@ -500,7 +523,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='9';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='10';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -639,6 +662,22 @@ function gridRoster(side){
   return act.sort((a,b)=>idx(a)-idx(b)||(a.p.status==='aushilfe')-(b.p.status==='aushilfe')||a.p.nr-b.p.nr)
     .map(x=>({...x,cls:(order.includes(x.p.nr)?' s7':'')+(x.p.status==='aushilfe'?' aus':'')}));
 }
+/* Wurfziel im Tor (Sicht des Werfers) und Torwart */
+const GZ=['OL','OM','OR','ML','MM','MR','UL','UM','UR'];
+const GZ_LABEL={OL:'oben links',OM:'oben Mitte',OR:'oben rechts',ML:'Mitte links',MM:'Mitte',MR:'Mitte rechts',UL:'unten links',UM:'unten Mitte',UR:'unten rechts'};
+function curGK(team){let nr=null;for(const e of S.events)if(e.type==='gk'&&e.team===team)nr=e.nr;
+  if(nr==null){if(team==='H'){const t=(S.cfg.start7||{}).TW;if(t!=null&&t!=='')nr=+t;else{const p=S.cfg.rosterH.find(p=>p.pos==='TW'&&p.status!=='pause');if(p)nr=p.nr;}}
+    else{const t=parseInt(S.game&&S.game.torwart,10);if(!isNaN(t))nr=t;}}
+  return nr;}
+function goalSVG(sel,stats){
+  const X0=20,Y0=12,W=260,H=180,cw=W/3,ch=H/3;
+  let s=`<rect x="${X0-10}" y="${Y0-10}" width="${W+20}" height="${H+12}" rx="4" class="gpost"/><rect x="${X0}" y="${Y0}" width="${W}" height="${H+2}" class="gnet"/>`;
+  GZ.forEach((z,i)=>{const x=X0+(i%3)*cw,y=Y0+Math.floor(i/3)*ch,st=stats&&stats[z];
+    const rate=st&&st.n?st.g/st.n:0,fill=stats?(st&&st.n?` style="fill-opacity:${(0.15+0.75*rate).toFixed(2)}"`:' style="fill:var(--surface)"'):'';
+    s+=`<g class="gz${sel===z?' sel':''}${stats?' ro':''}${stats&&st&&st.n&&rate>=0.5?' hi':''}" data-gz="${z}" ${stats?'':`tabindex="0" role="button" aria-label="Wurfziel ${GZ_LABEL[z]}" aria-pressed="${sel===z}"`}><rect x="${x+2}" y="${y+2}" width="${cw-4}" height="${ch-4}" rx="5"${fill}/>`+
+      (stats?`<text x="${x+cw/2}" y="${y+ch/2-6}" class="gzt">${st&&st.n?st.g+'/'+st.n:'–'}</text><text x="${x+cw/2}" y="${y+ch/2+14}" class="gzs">${st&&st.n?Math.round(100*st.g/st.n)+' %':''}</text>`:`<text x="${x+cw/2}" y="${y+ch/2}" class="gzl">${GZ_LABEL[z]}</text>`)+'</g>';});
+  return s;
+}
 function pname(side,nr){if(nr==null)return'';const R=roster(side),i=R.findIndex(p=>p.nr===nr);const sn=i>=0?shortNames(R)[i]:'';return 'Nr. '+nr+(sn?' '+sn:'');}
 
 function nextOf(e){
@@ -665,7 +704,7 @@ const evTime=e=>e.rt!=null?e.rt:e.t;
 function commit(result,w,t){
   const c=ctx(),p=S.pending,dur=c.w0?(w-c.w0)/1000:null;
   const pens=activePens(t);
-  const e={type:'pos',side:c.side,start:c.start,play:p.play||null,pos:p.pos||(c.start==='7m'?'7m':null),xy:p.pos&&p.pos!=='7m'&&p.xy?p.xy:null,player:p.player??null,def:c.side==='G'?(p.def??null):null,ast:c.side==='H'&&p.ast!=null&&p.ast!==p.player?p.ast:null,causes:[],
+  const e={type:'pos',side:c.side,start:c.start,play:p.play||null,pos:p.pos||(c.start==='7m'?'7m':null),xy:p.pos&&p.pos!=='7m'&&p.xy?p.xy:null,player:p.player??null,def:c.side==='G'?(p.def??null):null,ast:c.side==='H'&&p.ast!=null&&p.ast!==p.player?p.ast:null,causes:[],gz:SHOT.includes(result)&&p.gz?p.gz:null,gk:SHOT.includes(result)?curGK(other(c.side)):null,
     quality:SHOT.includes(result)?(p.quality||(c.start==='7m'?'frei':'bedrängt')):null,result,w,t:Math.round(t),dur:dur==null?null:Math.round(dur),
     num:(6-pens.H)+':'+(6-pens.G),half:S.half};
   if(c.start==='gegentor'){e.sm=p.sm!=null?p.sm:(dur!=null&&dur<=S.cfg.th.smSec);}
@@ -760,9 +799,12 @@ function renderLive(){
   document.querySelectorAll('[data-res]').forEach(b=>b.onclick=()=>{
     if(needPos(b.dataset.res)){toast('Erst den Wurfort antippen (Schritt 2)');const pc=$('posCard');pc.classList.remove('nudge');void pc.offsetWidth;pc.classList.add('nudge');return;}
     const e=commit(b.dataset.res,Date.now(),clockSec());save();
-    toast(`${RES_LABEL[e.side][e.result]}${e.player!=null?' · '+pname(e.side,e.player):''}${e.pos?' · '+e.pos:''}${e.ast!=null?' · Assist '+pname('H',e.ast):''}${e.def!=null?' · Abwehr '+pname('H',e.def):''}${e.sm?' · schnelle Mitte':''}${e.keep?' · Ball behalten':''}`);render();});
-  const parts=[];if(p.play)parts.push(playName(c.side,p.play));if(p.pos)parts.push(p.pos);if(p.player!=null)parts.push(pname(c.side,p.player));parts.push(p.quality||'bedrängt');if(c.side==='G'&&p.def!=null)parts.push('Abwehr '+pname('H',p.def));if(c.side==='H'&&p.ast!=null)parts.push('Assist '+pname('H',p.ast));
+    toast(`${RES_LABEL[e.side][e.result]}${e.player!=null?' · '+pname(e.side,e.player):''}${e.pos?' · '+e.pos:''}${e.ast!=null?' · Assist '+pname('H',e.ast):''}${e.def!=null?' · Abwehr '+pname('H',e.def):''}${e.gz?' · '+GZ_LABEL[e.gz]:''}${e.sm?' · schnelle Mitte':''}${e.keep?' · Ball behalten':''}`);render();});
+  const parts=[];if(p.play)parts.push(playName(c.side,p.play));if(p.pos)parts.push(p.pos);if(p.player!=null)parts.push(pname(c.side,p.player));parts.push(p.quality||'bedrängt');if(p.gz)parts.push('Ziel '+GZ_LABEL[p.gz]);if(c.side==='G'&&p.def!=null)parts.push('Abwehr '+pname('H',p.def));if(c.side==='H'&&p.ast!=null)parts.push('Assist '+pname('H',p.ast));
   $('pending').innerHTML='Aktuell: <b>'+parts.map(esc).join(' · ')+'</b>'+(p.pos?'':' · <span class="err">Wurfort fehlt</span> (Techn. Fehler geht ohne)');
+  const gp=$('goalPick');gp.innerHTML=goalSVG(p.gz);
+  gp.querySelectorAll('[data-gz]').forEach(g=>{const f=()=>{const z=g.dataset.gz;S.pending.gz=S.pending.gz===z?undefined:z;save();render();};g.onclick=f;g.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();f();}};});
+  {const dt=other(c.side),k=curGK(dt);$('gkChip').textContent=(dt==='G'?'TW Gegner: ':'Unser TW: ')+(k!=null?pname(dt,k):'nicht gesetzt')+' ⇄';$('gkChip').onclick=()=>gkSheet();}
   const svg=$('court');svg.innerHTML=courtSVG(p.pos,p.pos==='7m'?null:p.xy);
   svg.onclick=ev=>{const pt=svg.createSVGPoint();pt.x=ev.clientX;pt.y=ev.clientY;const q=pt.matrixTransform(svg.getScreenCTM().inverse());
     const x=Math.round(Math.max(0,Math.min(400,q.x))),y=Math.round(Math.max(0,Math.min(260,q.y)));S.pending.pos=regionOf(x,y);S.pending.xy=[x,y];save();render();};
@@ -789,9 +831,10 @@ function renderLive(){
   $('syncBadge').textContent=S.sync?'· abgeglichen':'';
   $('log').innerHTML=L.map(e=>{
     const tt=`<span class="t num">${fmt(evTime(e))}</span>`;
-    if(e.type==='pos')return `<div><span class="s ${e.side}"></span>${tt}<span>${RES_LABEL[e.side][e.result]}${e.player!=null?' · '+esc(pname(e.side,e.player)):''}${e.pos?' · '+e.pos:''}${e.play?' · '+esc(playName(e.side,e.play)):''}${e.quality==='frei'?' · frei':''}${e.ast!=null?' · Assist '+esc(pname('H',e.ast)):''}${e.def!=null?' · Abwehr '+esc(pname('H',e.def)):''}${e.causes&&e.causes.length?' · '+esc(causeNames(e).join(', ')):''}${e.sm?' · SM':''}${e.keep?' · Ball behalten':''}${e.dur!=null?' · '+e.dur+' s':''}${e.src==='bericht'?' · <i>aus Bericht</i>':''}${e.corr?' · <i>korrigiert</i>':''}${e.flag?' · <i>'+esc(e.flag)+'</i>':''}</span></div>`;
+    if(e.type==='pos')return `<div><span class="s ${e.side}"></span>${tt}<span>${RES_LABEL[e.side][e.result]}${e.player!=null?' · '+esc(pname(e.side,e.player)):''}${e.pos?' · '+e.pos:''}${e.play?' · '+esc(playName(e.side,e.play)):''}${e.quality==='frei'?' · frei':''}${e.ast!=null?' · Assist '+esc(pname('H',e.ast)):''}${e.def!=null?' · Abwehr '+esc(pname('H',e.def)):''}${e.causes&&e.causes.length?' · '+esc(causeNames(e).join(', ')):''}${e.gz?' · '+GZ_LABEL[e.gz]:''}${e.sm?' · SM':''}${e.keep?' · Ball behalten':''}${e.dur!=null?' · '+e.dur+' s':''}${e.src==='bericht'?' · <i>aus Bericht</i>':''}${e.corr?' · <i>korrigiert</i>':''}${e.flag?' · <i>'+esc(e.flag)+'</i>':''}</span></div>`;
     if(e.type==='pen')return `<div><span class="s X"></span>${tt}<span>2 Minuten ${e.team==='H'?'wir':'Gegner'}</span></div>`;
     if(e.type==='half')return `<div><span class="s X"></span>${tt}<span>Halbzeit</span></div>`;
+    if(e.type==='gk')return `<div><span class="s ${e.team}"></span>${tt}<span>Torwart ${e.team==='H'?'wir':'Gegner'}: ${esc(pname(e.team,e.nr))}</span></div>`;
     return `<div><span class="s X"></span>${tt}<span>Ballbesitz gewechselt</span></div>`;}).join('')||'<div><span>Noch keine Eingaben. Uhr antippen, dann Ergebnis erfassen.</span></div>';
   $('undo').disabled=!S.events.length;
   tick();
@@ -962,6 +1005,14 @@ function confirmNew(){
   <p class="pending">Tipp: Im Reiter Analyse speichert „Spiel abschließen“ das Spiel vorher im Archiv. Dann fließt es in die Statistik ein.</p>
   <div class="row"><button class="tool danger" id="n_yes">Löschen und neues Spiel</button><button class="tool" data-close>Abbrechen</button></div>`);
   $('n_yes').onclick=()=>{resetGame(false);save();closeSheet();toast('Neues Spiel angelegt');location.hash='#vorbereitung';};
+}
+function gkSheet(){
+  const grid=(team)=>{const R=team==='H'?gridRoster('H').map(x=>x.p).sort((a,b)=>(b.pos==='TW')-(a.pos==='TW')):roster('G'),cur=curGK(team),sn=shortNames(R);
+    return `<div class="grid players">${R.map((p,i)=>`<button class="btn num${cur===p.nr?' sel':''}" data-gkt="${team}" data-gkn="${p.nr}"><b>${p.nr}</b>${sn[i]?`<small>${esc(sn[i])}</small>`:''}</button>`).join('')}</div>`;};
+  openSheet(head('Torwart wechseln')+`<p class="pending">Ab jetzt werden alle Würfe dem gewählten Torwart zugeordnet. Der Wechsel steht im Verlauf und lässt sich mit „Rückgängig“ zurücknehmen.</p>
+    <h3>Torwart ${esc(S.cfg.nameG)}</h3>${grid('G')}<h3>Unser Torwart</h3>${grid('H')}<div class="row"><button class="tool" data-close>Fertig</button></div>`);
+  $('sheet').querySelectorAll('[data-gkt]').forEach(b=>b.onclick=()=>{const team=b.dataset.gkt,nr=+b.dataset.gkn;if(curGK(team)===nr){closeSheet();return;}
+    S.events.push({type:'gk',team,nr,t:Math.round(clockSec()),w:Date.now(),half:S.half});save();closeSheet();toast('Torwart '+(team==='H'?'wir':'Gegner')+': '+pname(team,nr));});
 }
 function confirmAbort(){
   const n=posEv().length;
@@ -1183,7 +1234,10 @@ function loadDemo(){
   let w=Date.now()-total*1000-90000,t=0;S.startW=w;
   D.forEach((d,i)=>{w+=d[5]*1000;t+=d[5];const side=ctx().side,pos=OLDPOS[d[1]]||d[1],g=GEO.find(g=>g.id===pos);
     const xy=g?[Math.round(g.lx+((i*37)%41)-20),Math.round(g.ly+((i*23)%31)-15)]:undefined;
-    S.pending={play:d[0]?pid(side,d[0]):undefined,pos,xy,player:d[2],quality:d[3]||undefined,def:DEMO_DEF[i],ast:DEMO_AST[i]};const ev=commit(d[4],w,t);
+    if(i===0){S.events.push({type:'gk',team:'H',nr:1,t:0,w:w-1000,half:1},{type:'gk',team:'G',nr:1,t:0,w:w-900,half:1});}
+    if(i===16)S.events.push({type:'gk',team:'G',nr:8,t:t-5,w:w-5000,half:1});
+    const gzc=side==='H'?['UL','OR','UL','MM','UR','UL','OL','UL']:['OR','UL','OM','OR','UR','OR'];
+    S.pending={play:d[0]?pid(side,d[0]):undefined,pos,xy,player:d[2],quality:d[3]||undefined,def:DEMO_DEF[i],ast:DEMO_AST[i],gz:gzc[i%gzc.length]};const ev=commit(d[4],w,t);
     if(DEMO_C[i])ev.causes=DEMO_C[i].map(nm=>{const x=S.cfg.causes[side].find(x=>x.name===nm);return x&&x.id;}).filter(Boolean);});
   const pt=t-70,pi=S.events.findIndex(e=>e.t>pt);
   S.events.splice(pi<0?S.events.length:pi,0,{type:'pen',team:'H',t:pt,w:w-70000,half:1});
@@ -1217,6 +1271,8 @@ function renderPrep(){
     <div class="form"><label>Torwart (Nr.)<input id="g_tw" value="${esc(g.torwart)}" inputmode="numeric"></label></div>
     <div class="label"><span>Schlüsselspieler</span><button class="mini" id="g_keyadd">+ hinzufügen</button></div>
     <div class="plist">${g.key.map((k,i)=>`<div class="krow"><input id="k_nr_${i}" data-knr="${i}" value="${k.nr??''}" inputmode="numeric" aria-label="Rückennummer" placeholder="Nr."><input id="k_no_${i}" data-kno="${i}" value="${esc(k.note)}" aria-label="Notiz" placeholder="z. B. Linkshänder, stark im 1 gegen 1"><button class="mini danger" data-kdel="${i}" aria-label="Entfernen">×</button></div>`).join('')||'<div class="pending">Noch keine Schlüsselspieler. Sie werden in den Live-Hinweisen und in der Analyse markiert.</div>'}</div>
+    ${(()=>{const ks=oppKeeperScout(c.nameG);if(!ks||!ks.groups.length)return '';const g=ks.groups.find(x=>x.L.length>=4);if(!g)return '';const f=gkFindings(g.L);
+      return `<div class="find ${f.weak.length?'good':'info'}"><span><b>Torwart ${esc(g.nr==null?'':ks.nameOf(g.nr))} aus ${ks.games.length} Spiel${ks.games.length>1?'en':''}:</b> ${g.L.filter(e=>e.result==='gehalten').length} Paraden bei ${g.L.length} Würfen${f.weak.length?' · schwach '+f.weak.map(([k,o])=>GZ_LABEL[k]+' ('+o.g+'/'+o.n+')').join(', '):''}${f.strong.length?' · stark '+f.strong.map(([k])=>GZ_LABEL[k]).join(', '):''}. Details im Reiter Statistik.</span></div>`;})()}
     <label class="fl">Notizen zum Gegner<textarea id="g_notiz" placeholder="Angriffsverhalten, Tempo, Auffälligkeiten aus dem letzten Spiel">${esc(g.notiz)}</textarea></label>
   </section>
   <section class="card"><h2 class="ch">Kader</h2><div class="form">
@@ -1362,6 +1418,12 @@ function analyze(){
     const dn=cst('G',e=>e.result==='tor').filter(x=>x.c.val==='-')[0];if(dn&&dn.k>=3)add(def,'warn',`Gegentore entstehen wiederholt nach „${dn.c.name}“`,`${dn.k} von ${gaC} Gegentoren mit Ursache. Abstimmung in der Abwehr gezielt trainieren.`);
     const dp=cst('G',e=>e.result!=='tor').filter(x=>x.c.val==='+')[0];if(dp&&dp.k>=3)add(def,'good',`Abwehr stark bei „${dp.c.name}“`,`${dp.k} gegnerische Angriffe ohne Tor.`);
     if(posEv().length>=15&&withC/posEv().length<.3)add(def,'info','Ursachen nur teilweise nachgetragen',`Bei ${withC} von ${posEv().length} Ballbesitzen. Mehr Einträge machen die Ursachenanalyse belastbarer.`);}
+  // Torwart-Schwachstellen
+  for(const g of gkGroups(S.events,'H')){if(g.L.length<6)continue;const f=gkFindings(g.L);
+    if(f.weak.length)add(att,'good',`Schwachstelle Torwart ${g.nr==null?'Gegner':pname('G',g.nr)}`,f.weak.map(([k,o])=>`${GZ_LABEL[k]}: ${o.g} Tore aus ${o.n} Würfen`).join(', ')+'. Dorthin werfen.');
+    if(f.strong.length)add(att,'info',`Starke Ecke Torwart ${g.nr==null?'Gegner':pname('G',g.nr)}`,f.strong.map(([k,o])=>`${GZ_LABEL[k]}: ${o.n-o.g} von ${o.n} gehalten`).join(', ')+'.');}
+  for(const g of gkGroups(S.events,'G')){if(g.L.length<6)continue;const f=gkFindings(g.L);
+    if(f.weak.length)add(def,'warn',`Unser Torwart ${g.nr==null?'':pname('H',g.nr)}: Schwachstelle`,f.weak.map(([k,o])=>`${GZ_LABEL[k]}: ${o.g} Gegentore aus ${o.n} Würfen`).join(', ')+'. Im Torwarttraining aufgreifen.');}
   const ord={warn:0,good:1,info:2};att.sort((a,b)=>ord[a.sev]-ord[b.sev]);def.sort((a,b)=>ord[a.sev]-ord[b.sev]);
   return{att,def};
 }
@@ -1403,6 +1465,7 @@ function playerSummary(d,side){
   if(d.tf)t+=` ${d.tf} techn. Fehler.`;if(d.drew)t+=` ${d.drew} Siebenmeter herausgeholt.`;
   const P=Object.entries(d.pos).sort((a,b)=>b[1].s-a[1].s);if(P.length)t+=` Positionen: ${P.map(([k,v])=>`${k} ${v.g}/${v.s}`).join(', ')}.`;
   if(d.rep&&d.rep.tore!==d.g)t+=` Spielbericht: ${d.rep.tore} Tore.`;
+  const zl=zoneLine(d.A.filter(e=>SHOT.includes(e.result)));if(zl)t+=` Wurfziele: ${zl}.`;
   return t+astT+defSummary(d.dfd);
 }
 const KIND_LABEL={goal:'Tor',goal7:'7m-Tor',miss7:'7m-Fehlwurf',pen:'2 Minuten',dq:'Disqualifikation',warn:'Verwarnung',timeout:'Auszeit',half:'Halbzeit'};
@@ -1419,7 +1482,7 @@ function renderAna(){
   else h+=`<div class="cols2"><section class="card"><h2 class="ch">Angriff</h2>${fl(F.att)}</section><section class="card"><h2 class="ch">Abwehr und Torwart</h2>${fl(F.def)}</section></div>`;
   const plan=(g.plan||'').split('\n').map(x=>x.trim()).filter(Boolean);
   if(plan.length)h+=`<section class="card"><h2 class="ch">Schwerpunkte aus der Vorbereitung</h2><ul class="plan">${plan.map(x=>`<li>${esc(x)}</li>`).join('')}</ul><div class="pending">Zum Abgleich mit den Auffälligkeiten oben.</div></section>`;
-  if(!F.empty)h+=causeSection()+`<section class="card"><h2 class="ch">Kennzahlen</h2>${kpiTable()}</section>`+wurfbild();
+  if(!F.empty)h+=causeSection()+`<section class="card"><h2 class="ch">Kennzahlen</h2>${kpiTable()}</section>`+keeperSection()+wurfbild();
   // Spieler
   const D=playerData(anaSide);
   h+=`<section class="card"><div class="sheethead"><h2 class="ch">Spieler</h2><div class="seg" role="group" aria-label="Team wählen"><button class="tab${anaSide==='H'?' on':''}" data-aside="H">${esc(S.cfg.nameH)}</button><button class="tab${anaSide==='G'?' on':''}" data-aside="G">${esc(S.cfg.nameG)}</button></div></div>
@@ -1713,7 +1776,8 @@ function teamDetail(t,maxDay,games){
         <div class="facts"><div class="fact"><small>Wir: Tore pro Ballbesitz</small><b>${pct(a.g,a.n)}</b></div><div class="fact"><small>Gegner: Tore pro Ballbesitz</small><b>${pct(b.g,b.n)}</b></div>
         <div class="fact"><small>Gegner: freie Würfe</small><b>${b.fr} · Verwertung ${pct(b.frg,b.fr)}</b></div><div class="fact"><small>Unser Torwart</small><b>${b.sv}/${b.ot} · ${pct(b.sv,b.ot)}</b></div></div>
         ${top.length?`<div class="pending"><b>Gegner-Torschützen gegen uns:</b> ${top.map(([n,c])=>'Nr. '+n+' ('+c+')').join(', ')}</div>`:''}
-        ${reg.length?`<div class="pending"><b>Gegentore vor allem aus:</b> ${reg.map(([r,c])=>esc(r)+' ('+c+')').join(', ')}</div>`:''}`;}
+        ${reg.length?`<div class="pending"><b>Gegentore vor allem aus:</b> ${reg.map(([r,c])=>esc(r)+' ('+c+')').join(', ')}</div>`:''}`;
+      const ks=oppKeeperScout(t.name);if(ks&&ks.groups.length)h+=`<h3>Torwart ${esc(t.name)} · aus unseren Würfen</h3><div class="cols2">${ks.groups.slice(0,2).map(g=>gkCard('G',g.nr,g.L,ks.nameOf)).join('')}</div>`;}
     else h+=`<div class="pending">Noch keine eigenen App-Daten gegen dieses Team.</div>`;
   }
   return h+'</section>';
@@ -1902,6 +1966,43 @@ function bindOpp(){
 
 /* Neuzeichnen nach Eingaben verzögern: change-Ereignisse feuern auch beim Verlassen per Reiterwechsel */
 function reSettings(){setTimeout(()=>{if(view==='einstellungen')renderSettings();},0);}
+
+/* ---------- Torwart-Analyse ---------- */
+function gkGroups(E,shotSide){
+  const G={};for(const e of E)if(e.type==='pos'&&e.side===shotSide&&(e.result==='tor'||e.result==='gehalten')){const k=e.gk==null?'?':e.gk;(G[k]=G[k]||[]).push(e);}
+  return Object.entries(G).map(([k,L])=>({nr:k==='?'?null:+k,L})).sort((a,b)=>b.L.length-a.L.length);
+}
+function zoneStats(L){const z={};for(const e of L)if(e.gz){const o=z[e.gz]||(z[e.gz]={n:0,g:0});o.n++;if(e.result==='tor')o.g++;}return z;}
+function gkFindings(L){
+  const z=zoneStats(L),weak=[],strong=[];
+  for(const k of GZ){const o=z[k];if(!o||o.n<3)continue;if(o.g/o.n>=.75)weak.push([k,o]);if((o.n-o.g)/o.n>=.6)strong.push([k,o]);}
+  weak.sort((a,b)=>b[1].g-a[1].g);strong.sort((a,b)=>(b[1].n-b[1].g)-(a[1].n-a[1].g));return{weak,strong,z};
+}
+function gkCard(team,nr,L,nameFn){
+  const sv=L.filter(e=>e.result==='gehalten').length,s7=L.filter(e=>e.start==='7m'),f=gkFindings(L),noZ=L.filter(e=>!e.gz).length;
+  const reg={};for(const e of L.filter(e=>e.pos&&e.pos!=='7m')){const o=reg[e.pos]||(reg[e.pos]={n:0,g:0});o.n++;if(e.result==='tor')o.g++;}
+  const regs=Object.entries(reg).filter(([,o])=>o.n>=2).sort((a,b)=>b[1].g/b[1].n-a[1].g/a[1].n).slice(0,3);
+  return `<div class="gkcard"><div class="gkhead">${logoImg(team==='G'?S.cfg.nameG:S.cfg.nameH,'sm')}<b>${nr==null?'Torwart nicht gesetzt':esc(nameFn(nr))}</b><span class="pending">${sv} Paraden bei ${L.length} Würfen aufs Tor (${pct(sv,L.length)})${s7.length?` · 7m ${s7.filter(e=>e.result==='gehalten').length}/${s7.length} gehalten`:''}</span></div>
+    <svg class="goal map" viewBox="0 0 300 206" role="img" aria-label="Trefferbild">${goalSVG(null,f.z)}</svg>
+    <div class="pending">Feld: Tore/Würfe aufs Tor in diese Ecke. Je dunkler, desto mehr Tore.${noZ?` ${noZ} Würfe ohne Wurfziel.`:''}</div>
+    ${f.weak.length?`<div class="find ${team==='G'?'good':'warn'}"><span><b>Schwach:</b> ${f.weak.map(([k,o])=>`${GZ_LABEL[k]} (${o.g} von ${o.n})`).join(', ')}</span></div>`:''}
+    ${f.strong.length?`<div class="find info"><span><b>Stark:</b> ${f.strong.map(([k,o])=>`${GZ_LABEL[k]} (${o.n-o.g} von ${o.n} gehalten)`).join(', ')}</span></div>`:''}
+    ${regs.length?`<div class="pending"><b>Nach Wurfort:</b> ${regs.map(([k,o])=>`${esc(k)} ${o.g}/${o.n}`).join(' · ')}</div>`:''}</div>`;
+}
+function keeperSection(){
+  const E=S.events,opp=gkGroups(E,'H'),own=gkGroups(E,'G');
+  if(!opp.length&&!own.length)return '';
+  return `<section class="card"><h2 class="ch">Torwart-Analyse</h2><div class="pending">Trefferbild aus Sicht des Werfers. Grundlage sind Würfe aufs Tor (Tor oder Parade) mit angetipptem Wurfziel.</div>
+    <div class="cols2"><div><h3>Torwart ${esc(S.cfg.nameG)} · unsere Würfe</h3>${opp.map(g=>gkCard('G',g.nr,g.L,n=>pname('G',n))).join('')||'<div class="pending">Keine Würfe.</div>'}</div>
+    <div><h3>Unser Torwart · Würfe des Gegners</h3>${own.map(g=>gkCard('H',g.nr,g.L,n=>pname('H',n))).join('')||'<div class="pending">Keine Würfe.</div>'}</div></div></section>`;
+}
+function zoneLine(L){const z={};for(const e of L)if(e.gz)z[e.gz]=(z[e.gz]||0)+1;const t=Object.entries(z).sort((a,b)=>b[1]-a[1]);return t.length?t.slice(0,3).map(([k,n])=>`${GZ_LABEL[k]} ${n}`).join(', '):'';}
+function oppKeeperScout(teamName){
+  const games=appGames().filter(g=>matchTeam(g.nameG,teamName));if(!games.length)return null;
+  const E=games.flatMap(g=>g.events),groups=gkGroups(E,'H');
+  const nameOf=nr=>{for(const g of games){const p=(g.rosterG||[]).find(p=>p.nr===nr);if(p&&p.name)return 'Nr. '+nr+' '+p.name.split(/\s+/)[0];}return 'Nr. '+nr;};
+  return{games,groups,nameOf};
+}
 
 S=load();
 if(!S){S=fresh();loadDemo();}
