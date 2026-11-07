@@ -372,6 +372,12 @@ td.win{color:var(--good);font-weight:700} td.loss{color:var(--def);font-weight:7
 .sched tr.rdh td{background:var(--surface-2);font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;padding-top:10px}
 .sched tr.rdh.cur td{color:var(--att)}
 td.draw{color:var(--warn);font-weight:700}
+
+.oppsel{display:grid;gap:8px}
+.oppsel select{font:inherit;font-size:16px;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px;width:100%}
+.oppinfo{display:grid;gap:8px}
+.okader{grid-column:1 / -1}
+.okader summary{cursor:pointer;font-size:13px;color:var(--muted)}
 </style>
 
 </head>
@@ -541,7 +547,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='15';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='16';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -602,7 +608,7 @@ const TH_LABEL={scorerWin:'Werfer-Hinweis: letzte X Gegentore',scorerMin:'Werfer
   tfWin:'Fehlerhäufung: letzte X Angriffe',tfMin:'… ab Y techn. Fehlern',playMin:'Spielzug-Lob: ab X freien Würfen',twWin:'Torwart: letzte X Würfe aufs Tor',twMax:'… Hinweis bei höchstens Y Paraden'};
 
 let S;
-function defGame(){return{datum:'',zeit:'',halle:'',klasse:'',wir:'',abwehr:'',torwart:'',key:[],notiz:'',plan:''};}
+function defGame(){return{datum:'',zeit:'',halle:'',klasse:'',wir:'',typ:'liga',abwehr:'',torwart:'',key:[],notiz:'',plan:''};}
 function fresh(){return{game:defGame(),cfg:defCfg(),half:1,clock:{base:0,run:null},startW:null,events:[],acks:{},pending:{},demo:false,report:null,sync:null,scout:null,league:null,archive:[]};}
 function migrate(o){
   const d=defCfg(),c=o.cfg;
@@ -764,7 +770,7 @@ function render(){
   const sc0=score();$('navMeta').textContent=`${S.cfg.nameH} ${sc0.h}:${sc0.g} ${S.cfg.nameG}`;
   $('demoNote').hidden=!S.demo;
   renderTeamSel();try{renderCloud();}catch(e){}
-  {const u=logoFor(S.cfg.nameH),bl=$('brandLogo');bl.hidden=!u;bl.innerHTML=u?`<img src="${u}" alt="" onerror="this.parentNode.hidden=true">`:'';}
+  {const u=logoFor(S.cfg.nameH),bl=$('brandLogo');bl.hidden=!u;bl.innerHTML=u?`<img src="${u}" alt="" onerror="if(this.parentNode)this.parentNode.hidden=true">`:'';}
   const vtxt='Version '+APP_VERSION+' · '+(STANDALONE?'App':'Browser');$('appVer').textContent=vtxt;$('footVer').textContent=vtxt;
   if(view==='vorbereitung')renderPrep();else if(view==='analyse')renderAna();else if(view==='statistik')renderStats();else if(view==='einstellungen')renderSettings();else renderLive();
   keepAwake();
@@ -1098,7 +1104,7 @@ function reportSheet(){
   openSheet(h);
   $('r_file').onchange=async ev=>{const f=ev.target.files[0];if(!f)return;$('r_status').textContent='Lese Spielbericht …';
     try{const rep=await readPdf(f);if(!repGoals(rep).length&&!rep.roster.heim.length)throw new Error('Im PDF wurden weder Tore noch Kader gefunden. Ist es ein Spielbericht von handball.net?');
-      S.report=rep;S.reportOurs=null;addToLeague(rep);save();reportSheet();toast('Spielbericht gelesen');}
+      S.report=rep;S.reportOurs=null;if(leagueGame()&&!isCup(rep))addToLeague(rep);save();reportSheet();toast('Spielbericht gelesen');}
     catch(err){$('r_status').innerHTML='<span class="err">'+esc(err.message||err)+'</span>';}};
   if(!R)return;
   document.querySelectorAll('[name=r_ours]').forEach(r=>r.onchange=()=>{S.reportOurs=r.value;save();});
@@ -1277,13 +1283,13 @@ function renderPrep(){
     <label>Halle<input id="g_halle" value="${esc(g.halle)}" placeholder="z. B. Tegelsbarg"></label>
     <label>Spielklasse<input id="g_klasse" value="${esc(g.klasse)}" placeholder="z. B. Oberliga mC"></label>
     <label>Unser Team<input id="g_nameH" value="${esc(c.nameH)}"></label>
-    <label>Gegner<input id="g_nameG" value="${esc(c.nameG)}"></label>
     <label>Halbzeitlänge (Minuten)<input type="number" id="g_half" min="10" max="30" value="${c.halfLen}"></label></div>
     <div class="radio" role="radiogroup" aria-label="Heim oder Gast">
       <label><input type="radio" name="g_wir" value="heim" ${g.wir==='heim'?'checked':''}> Wir spielen zu Hause</label>
       <label><input type="radio" name="g_wir" value="gast" ${g.wir==='gast'?'checked':''}> Wir sind Gast</label></div>
   </section>
-  <section class="card"><h2 class="ch">${logoImg(c.nameG,'md')}Gegner${(()=>{const e=oppEntry(c.nameG);return e&&okUrl(e.url)?' '+linkBtn(e.url,'Teamspielplan öffnen','inline'):'';})()}</h2>
+  <section class="card"><h2 class="ch">${logoImg(c.nameG,'md')}Gegner${['Gegner','Beispielgegner'].includes(c.nameG)?'':': '+esc(c.nameG)}${(g.typ||'liga')!=='liga'?` <span class="st diff">${TYP_LABEL[g.typ]}</span>`:''}${(()=>{const e=oppEntry(c.nameG);return e&&okUrl(e.url)?' '+linkBtn(e.url,'Teamspielplan öffnen','inline'):'';})()}</h2>
+    ${oppSelectHTML()}${oppInfoHTML()}
     <div class="label"><span>Abwehrsystem</span></div>
     <div class="radio">${DEF_SYS.map(x=>`<label><input type="radio" name="g_abw" value="${x}" ${g.abwehr===x?'checked':''}> ${x}</label>`).join('')}</div>
     <div class="form"><label>Torwart (Nr.)<input id="g_tw" value="${esc(g.torwart)}" inputmode="numeric"></label></div>
@@ -1305,7 +1311,7 @@ function renderPrep(){
   </section>${scoutCard()}</div>`;
   const on=(id,f)=>{const el=$(id);if(el)el.onchange=()=>{f(el.value);save();};};
   on('g_datum',v=>g.datum=v);on('g_zeit',v=>g.zeit=v);on('g_halle',v=>g.halle=v.trim());on('g_klasse',v=>g.klasse=v.trim());
-  on('g_nameH',v=>{if(v.trim())c.nameH=v.trim();});on('g_nameG',v=>{if(v.trim())c.nameG=v.trim();});
+  on('g_nameH',v=>{if(v.trim())c.nameH=v.trim();});
   on('g_half',v=>c.halfLen=Math.min(30,Math.max(10,+v||25)));on('g_tw',v=>g.torwart=v.trim());
   on('g_notiz',v=>g.notiz=v);on('g_plan',v=>g.plan=v);
   on('g_rH',v=>{const r=parseRoster(v);if(r.length)c.rosterH=r;});on('g_rG',v=>{const r=parseRoster(v);if(r.length)c.rosterG=r;});
@@ -1315,6 +1321,7 @@ function renderPrep(){
   document.querySelectorAll('[data-kno]').forEach(i=>i.onchange=()=>{g.key[+i.dataset.kno].note=i.value.trim();save();});
   document.querySelectorAll('[data-kdel]').forEach(b=>b.onclick=()=>{g.key.splice(+b.dataset.kdel,1);save();renderPrep();});
   $('g_keyadd').onclick=()=>{g.key.push({nr:null,note:''});save();renderPrep();const i=$('k_nr_'+(g.key.length-1));if(i)i.focus();};
+  bindOppSelect();
   $('g_plays').onclick=()=>settings('plays');$('g_editRoster').onclick=()=>settings('team');
   bindScout();
 }
@@ -1626,7 +1633,7 @@ function bindScout(){
     for(let i=0;i<files.length;i++){st.textContent=`Lese Bericht ${i+1} von ${files.length} …`;
       try{const R=await readPdf(files[i]);if(!R.roster.heim.length&&!R.roster.gast.length)throw new Error('kein Kader gefunden');parsed.push(R);}catch(e){errs.push(files[i].name+': '+(e.message||e));}}
     if(!parsed.length){st.innerHTML='<span class="err">'+esc(errs.join(' · ')||'Keine Berichte gelesen')+'</span>';return;}
-    const finish=team=>{parsed.forEach(R=>addToLeague(R));const r=addScoutReports(parsed,team);save();renderPrep();
+    const finish=team=>{parsed.forEach(R=>{if(!isCup(R))addToLeague(R);});const r=addScoutReports(parsed,team);save();renderPrep();
       toast(`${r.added} Bericht${r.added===1?'':'e'} übernommen${r.dup?', '+r.dup+' doppelt':''}${r.skipped?', '+r.skipped+' ohne '+team:''}`);};
     if(sc.team){finish(sc.team);return;}
     const cnt={};const all=[...parsed.flatMap(R=>[R.meta.heim,R.meta.gast])];for(const t of all)if(t)cnt[normT(t)]=(cnt[normT(t)]||{n:0,name:t}),cnt[normT(t)].n++;
@@ -1732,8 +1739,8 @@ function archiveGame(){
   S.archive=S.archive||[];const sc=score();
   S.archive.push({id:uid(),saved:Date.now(),datum:S.game.datum||(S.report&&S.report.meta.datum?S.report.meta.datum.split(',')[0]:''),
     nameH:S.cfg.nameH,nameG:S.cfg.nameG,score:sc.h+':'+sc.g,rosterH:S.cfg.rosterH,rosterG:S.cfg.rosterG,causes:S.cfg.causes,
-    events:S.events,reportNr:S.report?S.report.meta.nr:null});
-  if(S.report)addToLeague(S.report);
+    events:S.events,reportNr:S.report?S.report.meta.nr:null,typ:S.game.typ||'liga'});
+  if(S.report&&leagueGame()&&!isCup(S.report))addToLeague(S.report);
 }
 function confirmClose(){
   const n=posEv().length;
@@ -1821,7 +1828,7 @@ function ourTrend(games){
     <div class="fact"><small>Gegentore pro Ballbesitz</small><b>${pct(B.g,B.n)}</b></div><div class="fact"><small>Paraden</small><b>${pct(B.sv,B.ot)}</b></div></div>
     ${topC('H')?`<div class="pending"><b>Häufigste Probleme im Angriff:</b> ${topC('H')}</div>`:''}${topC('G')?`<div class="pending"><b>Häufigste Probleme in der Abwehr:</b> ${topC('G')}</div>`:''}
     <div class="tw"><table><thead><tr><th>Datum</th><th>Gegner</th><th class="r">Ergebnis</th><th class="r">Tore/Ballbesitz</th><th class="r">Frei verwertet</th><th class="r">TF</th><th class="r">Gegentore/Ballb.</th><th class="r">Paraden</th></tr></thead><tbody>
-    ${rows.map(({g,a,b})=>`<tr><td class="num">${esc(fmtDate(g.datum))}${g.live?' <span class="st diff">laufend</span>':''}</td><td>${esc(g.nameG)}</td><td class="r num">${esc(g.score)}</td><td class="r num">${pct(a.g,a.n)}</td><td class="r num">${a.frg}/${a.fr}</td><td class="r num">${a.tf}</td><td class="r num">${pct(b.g,b.n)}</td><td class="r num">${b.sv}/${b.ot}</td></tr>`).join('')}</tbody></table></div>
+    ${rows.map(({g,a,b})=>`<tr><td class="num">${esc(fmtDate(g.datum))}${g.live?' <span class="st diff">laufend</span>':''}</td><td>${esc(g.nameG)}${g.typ&&g.typ!=='liga'?' <span class="st">'+TYP_LABEL[g.typ]+'</span>':''}</td><td class="r num">${esc(g.score)}</td><td class="r num">${pct(a.g,a.n)}</td><td class="r num">${a.frg}/${a.fr}</td><td class="r num">${a.tf}</td><td class="r num">${pct(b.g,b.n)}</td><td class="r num">${b.sv}/${b.ot}</td></tr>`).join('')}</tbody></table></div>
     <div class="pending">Spiele kommen über „Spiel abschließen“ im Reiter Analyse ins Archiv.</div></section>`;
 }
 function fetchSheet(){
@@ -1855,10 +1862,10 @@ function fetchSheet(){
       catch(e){bad.push(f.name);}}
     const G=ids.size;if(!G&&!T){st.innerHTML='<span class="err">In der Datei wurden keine Spiele gefunden. Bitte die Seite von handball.net vollständig sichern (nicht nur als Text).</span>';return;}
     fetchSheet();toast(`${G} Spiele und ${T} Teams übernommen${N?', '+N+' neue Gegner':''}${bad.length?' · '+bad.length+' Datei(en) nicht lesbar':''}`);if(view==='statistik')renderStats();};
-  $('fx_files').onchange=async ev=>{const files=[...ev.target.files];if(!files.length)return;const st=$('fx_status');let upd=0,add=0,dup=0;const errs=[];
+  $('fx_files').onchange=async ev=>{const files=[...ev.target.files];if(!files.length)return;const st=$('fx_status');let cup=0,upd=0,add=0,dup=0;const errs=[];
     for(let i=0;i<files.length;i++){st.textContent=`Lese Bericht ${i+1} von ${files.length} …`;
-      try{const R=await readPdf(files[i]);if(!repGoals(R).length&&!R.roster.heim.length)throw new Error('kein Spielbericht erkannt');{const r=addToLeague(R);if(r==='upd')upd++;else if(r)add++;else dup++;}}catch(e){errs.push(files[i].name+': '+(e.message||e));}}
-    save();st.innerHTML=`<b>${add} neu</b>${upd?`, <b>${upd} korrigiert</b>`:''}, ${dup} schon vorhanden${errs.length?`, <span class="err">${errs.length} nicht lesbar</span><br>${esc(errs.join(' · '))}`:''}`;
+      try{const R=await readPdf(files[i]);if(!repGoals(R).length&&!R.roster.heim.length)throw new Error('kein Spielbericht erkannt');if(isCup(R)){cup++;continue;}{const r=addToLeague(R);if(r==='upd')upd++;else if(r)add++;else dup++;}}catch(e){errs.push(files[i].name+': '+(e.message||e));}}
+    save();st.innerHTML=`<b>${add} neu</b>${upd?`, <b>${upd} korrigiert</b>`:''}, ${dup} schon vorhanden${cup?`, ${cup} Pokalspiel${cup>1?'e':''} nicht in die Tabelle`:''}${errs.length?`, <span class="err">${errs.length} nicht lesbar</span><br>${esc(errs.join(' · '))}`:''}`;
     toast(`${add} Spielbericht${add===1?'':'e'} ergänzt${upd?', '+upd+' korrigiert':''}`);if(view==='statistik')renderStats();};
 }
 
@@ -1882,7 +1889,7 @@ function teamSettingsHTML(){
       <label>Tabelle der Staffel<input type="url" id="t_ltab" value="${esc(linksOf().table||'')}" placeholder="https://www.handball.net/…"></label>
       <label>Eigener Teamspielplan<input type="url" id="t_lteam" value="${esc(linksOf().team||'')}" placeholder="https://www.handball.net/…"></label></div>
     <div class="row">${linkBtn(leagueState().url,'Spielplan öffnen')}${linkBtn(linksOf().table,'Tabelle öffnen')}${linkBtn(linksOf().team,'Teamspielplan öffnen')}</div>
-    <h3>Kader</h3><div class="pending">${cnt('stamm')} Stammkader · ${cnt('aushilfe')} Aushilfen · ${cnt('pause')} pausiert. Pausierte Spieler erscheinen nicht in der Erfassung, Aushilfen sind dort mit einem A markiert.</div>
+    <h3>Kader</h3><div class="row"><button class="tool" id="r_fromrep">Namen und Nummern aus Spielberichten übernehmen</button></div><div class="pending">${cnt('stamm')} Stammkader · ${cnt('aushilfe')} Aushilfen · ${cnt('pause')} pausiert. Pausierte Spieler erscheinen nicht in der Erfassung, Aushilfen sind dort mit einem A markiert.</div>
     ${dup.length?`<div class="err">Doppelte Rückennummer: ${dup.join(', ')}</div>`:''}
     <div class="rlist">${order.map(i=>{const p=R[i];return `<div class="rrow st-${p.status}">
       <input type="number" class="rnr" id="r_nr_${i}" data-rnr="${i}" value="${p.nr}" min="0" max="99" inputmode="numeric" aria-label="Rückennummer">
@@ -1912,6 +1919,7 @@ function bindTeamSettings(){
     openSheet(head('Spieler entfernen?')+`<p>Nr. ${p.nr} ${esc(p.name||'')} wird aus dem Kader entfernt. Bereits erfasste Szenen behalten die Rückennummer. Für eine Pause reicht der Status „Pause / verletzt“.</p><div class="row"><button class="tool danger" id="rd_yes">Entfernen</button><button class="tool" data-close>Abbrechen</button></div>`);
     $('rd_yes').onclick=()=>{R.splice(i,1);drop7(p.nr);save();closeSheet();toast('Spieler entfernt');};});
   const add=st=>{const used=new Set(R.map(p=>p.nr));let n=1;while(used.has(n))n++;R.push({nr:n,name:'',pos:'',status:st});save();re();const i=$('r_nm_'+(R.length-1));if(i)i.focus();};
+  $('r_fromrep').onclick=()=>{importOwnRosterFromReports();re();};
   $('r_add').onclick=()=>add('stamm');$('r_addA').onclick=()=>add('aushilfe');
   document.querySelectorAll('[data-s7]').forEach(sel=>sel.onchange=()=>{const k=sel.dataset.s7,v=sel.value===''?null:+sel.value;
     if(v==null)delete c.start7[k];else{drop7(v);c.start7[k]=v;}save();re();});
@@ -1987,6 +1995,7 @@ function oppHTML(){
     <div class="rlist">${L.length?L.map((o,i)=>{const e=oppEntry(o.name)||{};return `<div class="orow2">${logoPicker(o.name,'lg_'+i)}
       <div class="oname"><b>${esc(o.name)}</b><span class="pending">${o.src==='bericht'?'aus Spielberichten':o.src==='handball.net'?'von handball.net':'manuell'}</span></div>
       <input type="url" data-ourl="${esc(o.name)}" value="${esc(e.url||'')}" placeholder="Link zum Teamspielplan auf handball.net" aria-label="Link zum Teamspielplan ${esc(o.name)}">
+      ${(()=>{const tp=teamPlayers(o.name);return tp&&tp.players.length?`<details class="okader"><summary>Kader aus Spielberichten: ${tp.players.length} Spieler · Torschützen: ${tp.players.filter(p=>p.tore).slice(0,3).map(p=>'Nr. '+p.nr+' ('+p.tore+')').join(', ')||'–'}</summary>${rosterTableHTML(tp.players)}</details>`:'';})()}
       <span class="row">${linkBtn(e.url,'öffnen')}${o.src!=='bericht'?`<button class="mini danger" data-odel="${esc(o.name)}" aria-label="Gegner entfernen">×</button>`:''}</span></div>`;}).join(''):'<div class="pending">Noch keine Gegner. Spielberichte einlesen (Reiter Statistik → Daten holen) oder die Tabelle einfügen.</div>'}</div>
     <div class="row"><input id="op_new" placeholder="Gegner von Hand hinzufügen" aria-label="Gegner hinzufügen"><button class="tool" id="op_add">Hinzufügen</button></div>`;
 }
@@ -2222,13 +2231,6 @@ function guessedGames(G){
   return out;
 }
 function nextOwnGame(){const G=Object.values(leagueState().games||{}).filter(g=>!g.finished&&(isOurTeam(g.home)||isOurTeam(g.away))).sort((a,b)=>String(a.date).localeCompare(String(b.date)));return G[0]||null;}
-function prepareOpponent(name){
-  const T=leagueTable(),tt=T.find(x=>matchTeam(x.name,name));
-  S.cfg.nameG=tt?tt.name:name;
-  if(tt){S.scout={team:tt.name,reports:tt.games.map(g=>({nr:g.nr,datum:g.datum,dk:g.dk,team:g.team,gegner:g.gegner,hg:g.hg,gf:g.gf,ga:g.ga,h1f:g.h1f,h1a:g.h1a,pens:g.pens,to:g.to,roster:g.roster}))};
-    const last=tt.games[tt.games.length-1];if(last&&last.roster.length)S.cfg.rosterG=last.roster.map(p=>({nr:p.nr,name:p.name}));}
-  save();toast(S.cfg.nameG+' als Gegner übernommen');location.hash='#vorbereitung';
-}
 
 /* ---------- Spielplan & Ergebnisse ---------- */
 let statSub='tabelle',schedOwn=false;
@@ -2263,6 +2265,67 @@ function scheduleHTML(){
   h+=`</tbody></table></div><div class="pending">Termine und Ergebnisse stammen aus gesicherten handball.net-Seiten (immer der aktuelle Spieltag) und aus eingelesenen Spielberichten. Den kompletten Spielplan eures Teams liefert vermutlich die gesicherte <b>Teamseite</b> auf handball.net. ≠ markiert ein Spiel, bei dem Spielbericht und handball.net nicht übereinstimmen.</div></section>`;
   return h;
 }
+
+/* ---------- Gegner auswählen, Vorbereitung je Gegner, Mannschaftsinfos aus Spielberichten ---------- */
+const isCup=R=>/POKAL|CUP/i.test((R&&R.meta&&(R.meta.klasse||''))||'');
+const leagueGame=()=>(S.game.typ||'liga')==='liga';
+const TYP_LABEL={liga:'Ligaspiel',pokal:'Pokalspiel',test:'Freundschaftsspiel'};
+function teamPlayers(name){const tt=leagueTable().find(x=>matchTeam(x.name,name));if(!tt)return null;return{tt,players:teamAgg(tt).players};}
+function oppEnsure(name){let e=oppEntry(name);if(!e){e={name,url:'',src:'manuell'};oppState()[normT(name)]=e;}return e;}
+function selectOpponent(name,typ){
+  const g=S.game,prev=S.cfg.nameG;
+  if(prev&&!['Gegner','Beispielgegner'].includes(prev)&&!matchTeam(prev,name))oppEnsure(prev).prep={abwehr:g.abwehr,torwart:g.torwart,key:g.key,notiz:g.notiz};
+  const tp=teamPlayers(name),nm=tp?tp.tt.name:name;
+  S.cfg.nameG=nm;g.typ=typ||'liga';
+  const pr=(oppEntry(nm)||{}).prep;
+  if(!matchTeam(prev||'',nm)){g.abwehr=pr?pr.abwehr:'';g.torwart=pr?pr.torwart:'';g.key=pr?pr.key:[];g.notiz=pr?pr.notiz:'';}
+  if(tp){const tt=tp.tt;
+    S.scout={team:tt.name,reports:tt.games.filter(x=>x.roster&&x.roster.length||x.gf!=null).map(x=>({nr:x.nr,datum:x.datum,dk:x.dk,team:x.team,gegner:x.gegner,hg:x.hg,gf:x.gf,ga:x.ga,h1f:x.h1f,h1a:x.h1a,pens:x.pens,to:x.to,roster:x.roster||[]}))};
+    if(tp.players.length)S.cfg.rosterG=tp.players.map(p=>({nr:p.nr,name:p.name})).sort((a,b)=>a.nr-b.nr);
+    if(!g.key.length)for(const p of tp.players.filter(p=>p.tore>=3).slice(0,3))g.key.push({nr:p.nr,note:keyNote(p)});
+  }else{S.scout=null;if(!pr)S.cfg.rosterG=[];}
+  save();
+}
+function prepareOpponent(name){selectOpponent(name,'liga');toast(S.cfg.nameG+' als Gegner übernommen');location.hash='#vorbereitung';}
+function oppSelectHTML(){
+  const c=S.cfg,g=S.game,L=leagueOpponents(),typ=g.typ||'liga',inList=L.some(o=>matchTeam(o.name,c.nameG));
+  const manual=typ!=='liga'||(!inList&&!['Gegner','Beispielgegner',''].includes(c.nameG));
+  return `<div class="oppsel"><label class="fl">Gegner auswählen<select id="g_opp" aria-label="Gegner auswählen">
+      <option value="">– Gegner wählen –</option>${L.map(o=>`<option value="${esc(o.name)}"${!manual&&matchTeam(o.name,c.nameG)?' selected':''}>${esc(o.name)}</option>`).join('')}
+      <option value="__manual"${manual?' selected':''}>Anderer Gegner: Pokal- oder Freundschaftsspiel …</option></select></label>
+    ${manual?`<div class="form"><label>Name des Gegners<input id="g_oppname" value="${esc(['Gegner','Beispielgegner'].includes(c.nameG)?'':c.nameG)}" placeholder="z. B. TSV Altenholz"></label></div>
+      <div class="radio">${['pokal','test','liga'].map(k=>`<label><input type="radio" name="g_typ" value="${k}"${typ===k?' checked':''}> ${TYP_LABEL[k]}</label>`).join('')}</div>
+      <div class="pending">${typ==='liga'?'Zählt als Ligaspiel für die Tabelle.':'Zählt nicht für die Tabelle. Spielbericht und Szenen bleiben in Analyse und Archiv erhalten.'}</div>`:''}
+    ${L.length?'':'<div class="pending">Die Liste füllt sich, sobald Spielberichte oder eine handball.net-Seite eingelesen sind (Statistik → Daten holen).</div>'}</div>`;
+}
+function oppInfoHTML(){
+  const c=S.cfg,tp=teamPlayers(c.nameG);if(!tp)return '';
+  const A=teamAgg(tp.tt),I=scoutInsights(A);
+  return `<div class="oppinfo"><div class="facts"><div class="fact"><small>Bilanz</small><b>${tp.tt.s} S, ${tp.tt.u} U, ${tp.tt.n} N · Platz ${leagueTable().findIndex(x=>normT(x.name)===normT(tp.tt.name))+1}</b></div>
+    <div class="fact"><small>Ø Tore : Gegentore</small><b class="num">${f1(A.gf)} : ${f1(A.ga)}</b></div><div class="fact"><small>Ø Tore 1. / 2. HZ</small><b class="num">${f1(A.h1)} / ${f1(A.h2)}</b></div>
+    <div class="fact"><small>7m · Ø Zeitstrafen</small><b class="num">${A.g7}/${A.a7} · ${f1(A.pens)}</b></div></div>
+    ${I.map(([s,x])=>`<div class="find ${s}"><span>${esc(x)}</span></div>`).join('')}
+    <div class="pending">Aus ${tp.tt.sp} Spiel${tp.tt.sp===1?'':'en'} (Spielberichte und handball.net). Kader und Schlüsselspieler wurden daraus vorbelegt.</div></div>`;
+}
+function rosterTableHTML(players){
+  if(!players||!players.length)return '<div class="pending">Keine Spieler in den Spielberichten.</div>';
+  return `<div class="tw"><table><thead><tr><th>Nr.</th><th>Name</th><th class="r">Spiele</th><th class="r">Tore</th><th class="r">Ø</th><th class="r">7m</th></tr></thead><tbody>${[...players].sort((a,b)=>a.nr-b.nr).map(p=>`<tr><td class="num">${p.nr}</td><td>${esc(p.name)}</td><td class="r num">${p.games}</td><td class="r num">${p.tore||'–'}</td><td class="r num">${p.tore?f1(p.tore/p.games):'–'}</td><td class="r num">${p.a7?p.g7+'/'+p.a7:'–'}</td></tr>`).join('')}</tbody></table></div>`;
+}
+function bindOppSelect(){
+  const sel=$('g_opp');if(!sel)return;
+  sel.onchange=()=>{const v=sel.value;if(v==='__manual'){S.game.typ='pokal';if(leagueOpponents().some(o=>matchTeam(o.name,S.cfg.nameG)))selectOpponent('Gegner','pokal');save();rePrep();const i=$('g_oppname');if(i)i.focus();return;}
+    if(!v)return;selectOpponent(v,'liga');toast(S.cfg.nameG+': Kader, Scouting und Schlüsselspieler übernommen');rePrep();};
+  const nm=$('g_oppname');if(nm)nm.onchange=()=>{const v=nm.value.trim();if(!v)return;selectOpponent(v,S.game.typ==='liga'?'pokal':S.game.typ);rePrep();};
+  document.querySelectorAll('[name=g_typ]').forEach(r=>r.onchange=()=>{S.game.typ=r.value;save();rePrep();});
+}
+function importOwnRosterFromReports(){
+  const tp=teamPlayers(S.cfg.nameH);if(!tp||!tp.players.length){toast('Keine Spielberichte mit eurem Team gefunden');return;}
+  const before=S.cfg.rosterH.length,named=S.cfg.rosterH.filter(p=>p.name).length;
+  mergeOwnRoster(tp.players.map(p=>({nr:p.nr,name:p.name})));save();
+  toast(`${S.cfg.rosterH.filter(p=>p.name).length-named} Namen ergänzt, ${S.cfg.rosterH.length-before} Spieler neu (als Aushilfe)`);
+}
+
+function rePrep(){setTimeout(()=>{if(view==='vorbereitung')renderPrep();},0);}
 
 S=load();
 if(!S){S=fresh();loadDemo();}
