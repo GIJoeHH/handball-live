@@ -277,10 +277,23 @@ html.standalone body{padding-top:calc(env(safe-area-inset-top,0px) + 52px)}
 .keeprow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .keep{min-height:44px;padding:0 16px;border-radius:999px;border:2px dashed var(--line);background:var(--surface-2);font-weight:700;font-size:15px}
 .keep.on{border-style:solid;border-color:var(--ink);background:var(--ink);color:var(--surface)}
+
+.updbar{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 8px);z-index:70;display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;background:var(--ink);color:var(--surface);border-radius:12px;padding:8px 12px;font-weight:600;box-shadow:0 8px 24px rgba(0,0,0,.25);max-width:calc(100% - 32px)}
+.updbar button{min-height:40px;border-radius:9px;border:0;background:var(--att);color:#fff;font-weight:700;padding:0 14px}
 </style>
 
 </head>
 <body>
+
+<script>
+/* Web-App: Offline-Betrieb und Updates.
+   hbHardReload leert den Zwischenspeicher und lädt die neueste Fassung. Muss vor dem App-Code definiert sein. */
+window.hbHardReload=async function(){
+  try{const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)));}catch(e){}
+  try{const regs=await navigator.serviceWorker.getRegistrations();await Promise.all(regs.map(r=>r.unregister()));}catch(e){}
+  location.replace(location.pathname+'?neu='+Date.now()+location.hash);
+};
+</script>
 <div class="app" id="app">
   <nav class="nav" aria-label="Bereiche">
     <a href="#vorbereitung" class="navtab" data-view="vorbereitung"><span class="step">1</span>Vorbereitung</a>
@@ -425,7 +438,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='4';
+const APP_VERSION='5';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -787,7 +800,8 @@ function settings(tab){
     h+=`<div class="form">`+Object.keys(DEF_TH).map(k=>`<label>${TH_LABEL[k]}<input id="th_${k}" type="number" min="1" max="99" value="${c.th[k]}"></label>`).join('')+
       `</div><div class="row"><button class="tool primary" id="s_save">Speichern</button></div>`;
   }
-  h+=`<h3>Spiel</h3><div class="row"><button class="tool" id="s_demo">Beispieldaten laden</button><button class="tool danger" id="s_new">Neues Spiel</button></div>`;
+  h+=`<h3>Spiel</h3><div class="row"><button class="tool" id="s_demo">Beispieldaten laden</button><button class="tool danger" id="s_new">Neues Spiel</button></div>
+    <h3>App</h3><div class="row"><span class="pending">${'Version '+APP_VERSION+' · '+(STANDALONE?'App':'Browser')}</span>${window.hbHardReload?'<button class="tool" id="s_reload">App neu laden</button>':''}</div>`;
   openSheet(h);
   const sh=$('sheet');
   sh.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>settings(b.dataset.tab));
@@ -813,6 +827,7 @@ function settings(tab){
     }else{for(const k in DEF_TH){const v=parseInt($('th_'+k).value,10);if(!isNaN(v)&&v>0)c.th[k]=v;}}
     save();toast('Einstellungen gespeichert');render();};
   $('s_demo').onclick=()=>{loadDemo();closeSheet();toast('Beispieldaten geladen');};
+  if($('s_reload'))$('s_reload').onclick=()=>window.hbHardReload();
   $('s_new').onclick=confirmNew;
 }
 function confirmNew(){
@@ -1453,13 +1468,20 @@ setInterval(tick,250);
 </script>
 
 <script>
-/* Offline-Betrieb: Service Worker registrieren (nur auf https bzw. localhost) */
 if('serviceWorker' in navigator&&(location.protocol==='https:'||location.hostname==='localhost')){
-  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js').then(reg=>{
-    reg.addEventListener('updatefound',()=>{const nw=reg.installing;if(!nw)return;nw.addEventListener('statechange',()=>{
-      if(nw.state==='installed'&&navigator.serviceWorker.controller){const t=document.getElementById('toast');if(t){t.textContent='Neue Version geladen. App schließen und neu öffnen.';t.hidden=false;setTimeout(()=>t.hidden=true,4000);}}});});
-  }).catch(()=>{});});
+  window.addEventListener('load',()=>{navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).catch(()=>{});});
 }
+/* Versionsprüfung: bei jedem Öffnen mit Internet version.json frisch abfragen */
+async function hbCheckVersion(){
+  try{const r=await fetch('version.json?t='+Date.now(),{cache:'no-store'});if(!r.ok)return;const j=await r.json();
+    const cur=parseInt(window.HB_APP_VERSION||'0',10),neu=parseInt(j.version,10);
+    if(neu>cur&&!document.getElementById('updBar')){const b=document.createElement('div');b.id='updBar';b.className='updbar';b.setAttribute('role','status');
+      b.innerHTML='Neue Version '+neu+' verfügbar (installiert: '+cur+')<button type="button">Jetzt aktualisieren</button>';
+      b.querySelector('button').onclick=()=>window.hbHardReload();document.body.appendChild(b);}
+  }catch(e){}
+}
+window.addEventListener('load',hbCheckVersion);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')hbCheckVersion();});
 </script>
 </body>
 </html>
