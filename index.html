@@ -209,9 +209,9 @@ th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .stepn{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--ink);color:var(--surface);font-size:11px;font-weight:700;margin-right:6px;letter-spacing:0;vertical-align:1px}
 .resultbar{border-width:2px;border-color:var(--ink)}
 .resrow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;align-items:stretch}
-.resgrid{grid-template-columns:repeat(6,minmax(0,1fr))}
+.resgrid{grid-template-columns:repeat(7,minmax(0,1fr))}
 .resrow .undo{min-width:120px}
-@media (max-width:900px){.resgrid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:900px){.resgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
 @media (max-width:560px){.resrow{grid-template-columns:1fr}.resgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 .res.locked{opacity:.38}
 #posCard.need{border-color:var(--warn-line);border-width:2px}
@@ -273,6 +273,10 @@ th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 html.standalone body{padding-top:calc(env(safe-area-inset-top,0px) + 52px)}
 .ver{font-size:12px;color:var(--muted);font-weight:600;border:1px solid var(--line);border-radius:999px;padding:3px 10px;background:var(--surface);white-space:nowrap}
 @media (max-width:640px){.ver{margin-left:auto}}
+
+.keeprow{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.keep{min-height:44px;padding:0 16px;border-radius:999px;border:2px dashed var(--line);background:var(--surface-2);font-weight:700;font-size:15px}
+.keep.on{border-style:solid;border-color:var(--ink);background:var(--ink);color:var(--surface)}
 </style>
 
 </head>
@@ -342,6 +346,7 @@ html.standalone body{padding-top:calc(env(safe-area-inset-top,0px) + 52px)}
     <div class="label"><span><span class="stepn">5</span>Ergebnis · schließt den Ballbesitz ab</span></div>
     <div class="pending" id="pending"></div>
     <div class="resrow"><div class="grid resgrid" id="results"></div><button class="undo" id="undo">↶ Rückgängig</button></div>
+    <div class="keeprow"><button class="keep" id="keepBtn" aria-pressed="false"></button><span class="pending" id="keepHint"></span></div>
   </section>
   <section class="card">
     <div class="label"><span>Verlauf <span class="badge" id="syncBadge"></span></span><span id="logCount"></span></div>
@@ -420,17 +425,18 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='3';
+const APP_VERSION='4';
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
 const PDFJS='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
-const RES=['tor','gehalten','vorbei','block','tf','7m'];
-const SHOT=['tor','gehalten','vorbei','block'];
-const RES_LABEL={H:{tor:'Tor',gehalten:'Gehalten',vorbei:'Vorbei',block:'Geblockt',tf:'Techn. Fehler','7m':'7m geholt'},
-                 G:{tor:'Gegentor',gehalten:'Parade',vorbei:'Vorbei',block:'Block',tf:'Ballgewinn','7m':'7m gegen uns'}};
-const START_LABEL={H:{anpfiff:'Anwurf',gegentor:'nach Gegentor',fehlwurf:'nach Parade / Fehlwurf Gegner',ballgewinn:'nach Ballgewinn','7m':'Siebenmeter',unbekannt:'aus Spielbericht'},
-                   G:{anpfiff:'Anwurf',gegentor:'nach unserem Tor',fehlwurf:'nach unserem Fehlwurf',ballgewinn:'nach unserem Ballverlust','7m':'Siebenmeter',unbekannt:'aus Spielbericht'}};
+const RES=['tor','gehalten','vorbei','pfosten','block','tf','7m'];
+const SHOT=['tor','gehalten','vorbei','pfosten','block'];
+const KEEPABLE=['gehalten','vorbei','pfosten','block'];
+const RES_LABEL={H:{tor:'Tor',gehalten:'Gehalten',vorbei:'Vorbei',pfosten:'Pfosten/Latte',block:'Geblockt',tf:'Techn. Fehler','7m':'7m geholt'},
+                 G:{tor:'Gegentor',gehalten:'Parade',vorbei:'Vorbei',pfosten:'Pfosten/Latte',block:'Block',tf:'Ballgewinn','7m':'7m gegen uns'}};
+const START_LABEL={H:{anpfiff:'Anwurf',gegentor:'nach Gegentor',fehlwurf:'nach Parade / Fehlwurf Gegner',ballgewinn:'nach Ballgewinn','7m':'Siebenmeter',nachwurf:'Ball nach Wurf behalten',unbekannt:'aus Spielbericht'},
+                   G:{anpfiff:'Anwurf',gegentor:'nach unserem Tor',fehlwurf:'nach unserem Fehlwurf',ballgewinn:'nach unserem Ballverlust','7m':'Siebenmeter',nachwurf:'Ball nach Wurf behalten',unbekannt:'aus Spielbericht'}};
 /* Spielfeld-Geometrie: 20 px = 1 m, Tor oben Mitte. Regionen nach Winkel zum Tor und Abstand zur Torlinie */
 const GX=200,GY=10;
 const segD=(x,y)=>Math.hypot(x-Math.max(170,Math.min(230,x)),y-GY);
@@ -514,6 +520,7 @@ function pname(side,nr){if(nr==null)return'';const R=roster(side),i=R.findIndex(
 
 function nextOf(e){
   if(e.result==='7m')return{side:e.side,start:'7m'};
+  if(e.keep)return{side:e.side,start:'nachwurf'};
   if(e.result==='tor')return{side:other(e.side),start:'gegentor'};
   if(e.result==='tf')return{side:other(e.side),start:'ballgewinn'};
   return{side:other(e.side),start:'fehlwurf'};
@@ -539,6 +546,7 @@ function commit(result,w,t){
     quality:SHOT.includes(result)?(p.quality||(c.start==='7m'?'frei':'bedrängt')):null,result,w,t:Math.round(t),dur:dur==null?null:Math.round(dur),
     num:(6-pens.H)+':'+(6-pens.G),half:S.half};
   if(c.start==='gegentor'){e.sm=p.sm!=null?p.sm:(dur!=null&&dur<=S.cfg.th.smSec);}
+  if(p.keep&&KEEPABLE.includes(result))e.keep=true;
   S.events.push(e);S.pending={};
   return e;
 }
@@ -613,12 +621,16 @@ function renderLive(){
   document.querySelectorAll('[data-play]').forEach(b=>b.onclick=()=>{const id=b.dataset.play;S.pending.play=S.pending.play===id?undefined:id;save();render();});
   if(c.start==='7m'&&!p.pos){p.pos='7m';if(!p.quality)p.quality='frei';}
   const needPos=r=>r!=='tf'&&!p.pos;
+  $('keepBtn').textContent=(p.keep?'✓ ':'↺ ')+(c.side==='H'?'Ball bleibt bei uns':'Ball bleibt beim Gegner');
+  $('keepBtn').classList.toggle('on',!!p.keep);$('keepBtn').setAttribute('aria-pressed',!!p.keep);
+  $('keepHint').textContent=p.keep?'Gilt für Gehalten, Vorbei, Pfosten/Latte und Geblockt: Abschluss zählt, das Angriffsrecht bleibt.':'z. B. Pfosten und Abpraller zum Angreifer, Block ins Seitenaus';
+  $('keepBtn').onclick=()=>{S.pending.keep=!S.pending.keep;save();render();};
   $('results').innerHTML=RES.map(r=>`<button class="btn res ${r==='tor'?'goal':'pos'} ${c.side}${needPos(r)?' locked':''}" data-res="${r}" aria-disabled="${needPos(r)}">${RES_LABEL[c.side][r]}</button>`).join('');
   $('posCard').classList.toggle('need',!p.pos);
   document.querySelectorAll('[data-res]').forEach(b=>b.onclick=()=>{
     if(needPos(b.dataset.res)){toast('Erst den Wurfort antippen (Schritt 2)');const pc=$('posCard');pc.classList.remove('nudge');void pc.offsetWidth;pc.classList.add('nudge');return;}
     const e=commit(b.dataset.res,Date.now(),clockSec());save();
-    toast(`${RES_LABEL[e.side][e.result]}${e.player!=null?' · '+pname(e.side,e.player):''}${e.pos?' · '+e.pos:''}${e.ast!=null?' · Assist '+pname('H',e.ast):''}${e.def!=null?' · Abwehr '+pname('H',e.def):''}${e.sm?' · schnelle Mitte':''}`);render();});
+    toast(`${RES_LABEL[e.side][e.result]}${e.player!=null?' · '+pname(e.side,e.player):''}${e.pos?' · '+e.pos:''}${e.ast!=null?' · Assist '+pname('H',e.ast):''}${e.def!=null?' · Abwehr '+pname('H',e.def):''}${e.sm?' · schnelle Mitte':''}${e.keep?' · Ball behalten':''}`);render();});
   const parts=[];if(p.play)parts.push(playName(c.side,p.play));if(p.pos)parts.push(p.pos);if(p.player!=null)parts.push(pname(c.side,p.player));parts.push(p.quality||'bedrängt');if(c.side==='G'&&p.def!=null)parts.push('Abwehr '+pname('H',p.def));if(c.side==='H'&&p.ast!=null)parts.push('Assist '+pname('H',p.ast));
   $('pending').innerHTML='Aktuell: <b>'+parts.map(esc).join(' · ')+'</b>'+(p.pos?'':' · <span class="err">Wurfort fehlt</span> (Techn. Fehler geht ohne)');
   const svg=$('court');svg.innerHTML=courtSVG(p.pos,p.pos==='7m'?null:p.xy);
@@ -643,11 +655,11 @@ function renderLive(){
     $('defenders').innerHTML=dr.map((pl,i)=>`<button class="btn num${p.def===pl.nr?' sel':''}" data-df="${pl.nr}" title="${esc(pl.name)}"><b>${pl.nr}</b>${dsn[i]?`<small>${esc(dsn[i])}</small>`:''}</button>`).join('');
     document.querySelectorAll('[data-df]').forEach(b=>b.onclick=()=>{const n=+b.dataset.df;S.pending.def=S.pending.def===n?undefined:n;save();render();});}
   const L=S.events.slice(-60).reverse();
-  $('logCount').textContent=posEv().length+' Ballbesitze';
+  $('logCount').textContent=posEv().filter(e=>!e.keep).length+' Ballbesitze';
   $('syncBadge').textContent=S.sync?'· abgeglichen':'';
   $('log').innerHTML=L.map(e=>{
     const tt=`<span class="t num">${fmt(evTime(e))}</span>`;
-    if(e.type==='pos')return `<div><span class="s ${e.side}"></span>${tt}<span>${RES_LABEL[e.side][e.result]}${e.player!=null?' · '+esc(pname(e.side,e.player)):''}${e.pos?' · '+e.pos:''}${e.play?' · '+esc(playName(e.side,e.play)):''}${e.quality==='frei'?' · frei':''}${e.ast!=null?' · Assist '+esc(pname('H',e.ast)):''}${e.def!=null?' · Abwehr '+esc(pname('H',e.def)):''}${e.causes&&e.causes.length?' · '+esc(causeNames(e).join(', ')):''}${e.sm?' · SM':''}${e.dur!=null?' · '+e.dur+' s':''}${e.src==='bericht'?' · <i>aus Bericht</i>':''}${e.corr?' · <i>korrigiert</i>':''}${e.flag?' · <i>'+esc(e.flag)+'</i>':''}</span></div>`;
+    if(e.type==='pos')return `<div><span class="s ${e.side}"></span>${tt}<span>${RES_LABEL[e.side][e.result]}${e.player!=null?' · '+esc(pname(e.side,e.player)):''}${e.pos?' · '+e.pos:''}${e.play?' · '+esc(playName(e.side,e.play)):''}${e.quality==='frei'?' · frei':''}${e.ast!=null?' · Assist '+esc(pname('H',e.ast)):''}${e.def!=null?' · Abwehr '+esc(pname('H',e.def)):''}${e.causes&&e.causes.length?' · '+esc(causeNames(e).join(', ')):''}${e.sm?' · SM':''}${e.keep?' · Ball behalten':''}${e.dur!=null?' · '+e.dur+' s':''}${e.src==='bericht'?' · <i>aus Bericht</i>':''}${e.corr?' · <i>korrigiert</i>':''}${e.flag?' · <i>'+esc(e.flag)+'</i>':''}</span></div>`;
     if(e.type==='pen')return `<div><span class="s X"></span>${tt}<span>2 Minuten ${e.team==='H'?'wir':'Gegner'}</span></div>`;
     if(e.type==='half')return `<div><span class="s X"></span>${tt}<span>Halbzeit</span></div>`;
     return `<div><span class="s X"></span>${tt}<span>Ballbesitz gewechselt</span></div>`;}).join('')||'<div><span>Noch keine Eingaben. Uhr antippen, dann Ergebnis erfassen.</span></div>';
@@ -701,7 +713,7 @@ function sideStats(s){
   const fr=sh.filter(e=>e.quality==='frei'),frg=fr.filter(e=>e.result==='tor');
   const sm=P.filter(e=>e.start==='gegentor'&&e.sm),smg=sm.filter(e=>e.result==='tor');
   const ot=sh.filter(e=>e.result==='tor'||e.result==='gehalten'),sv=ot.filter(e=>e.result==='gehalten');
-  return{n:P.length,g:g.length,sh:sh.length,fr:fr.length,frg:frg.length,tf:P.filter(e=>e.result==='tf').length,
+  return{n:P.filter(e=>!e.keep).length,keep:P.filter(e=>e.keep).length,g:g.length,sh:sh.length,fr:fr.length,frg:frg.length,tf:P.filter(e=>e.result==='tf').length,
     sm:sm.length,smg:smg.length,smn:P.filter(e=>e.start==='gegentor').length,ot:ot.length,sv:sv.length,
     m7:P.filter(e=>e.start==='7m').length,g7:P.filter(e=>e.start==='7m'&&e.result==='tor').length};
 }
@@ -714,7 +726,7 @@ function overview(){
     row('Ballbesitze',a.n,b.n)+row('Tore',a.g,b.g)+row('Tore pro Ballbesitz',pct(a.g,a.n),pct(b.g,b.n))+
     row('Freie Würfe (Anteil an Ballbesitzen)',`${a.fr} · ${pct(a.fr,a.n)}`,`${b.fr} · ${pct(b.fr,b.n)}`)+
     row('Verwertung freier Würfe',`${a.frg}/${a.fr} · ${pct(a.frg,a.fr)}`,`${b.frg}/${b.fr} · ${pct(b.frg,b.fr)}`)+
-    row('Techn. Fehler',a.tf,b.tf)+
+    row('Techn. Fehler',a.tf,b.tf)+row('Abschlüsse mit Ball behalten',a.keep,b.keep)+
     row('Schnelle Mitte: gespielt / Tore (von Anwürfen)',`${a.sm} / ${a.smg} (${a.smn})`,`${b.sm} / ${b.smg} (${b.smn})`)+
     row('7m: Tore / Würfe',`${a.g7}/${a.m7}`,`${b.g7}/${b.m7}`)+
     row('Paraden des gegnerischen Torwarts',`${a.sv}/${a.ot} · ${pct(a.sv,a.ot)}`,'')+
@@ -1101,7 +1113,7 @@ function kpiTable(){
     row('Ballbesitze',a.n,b.n)+row('Tore',a.g,b.g)+row('Tore pro Ballbesitz',pct(a.g,a.n),pct(b.g,b.n))+
     row('Freie Würfe (Anteil an Ballbesitzen)',`${a.fr} · ${pct(a.fr,a.n)}`,`${b.fr} · ${pct(b.fr,b.n)}`)+
     row('Verwertung freier Würfe',`${a.frg}/${a.fr} · ${pct(a.frg,a.fr)}`,`${b.frg}/${b.fr} · ${pct(b.frg,b.fr)}`)+
-    row('Techn. Fehler',a.tf,b.tf)+
+    row('Techn. Fehler',a.tf,b.tf)+row('Abschlüsse mit Ball behalten',a.keep,b.keep)+
     row('Schnelle Mitte: gespielt / Tore (von Anwürfen)',`${a.sm} / ${a.smg} (${a.smn})`,`${b.sm} / ${b.smg} (${b.smn})`)+
     row('7m: Tore / Würfe',`${a.g7}/${a.m7}`,`${b.g7}/${b.m7}`)+
     row('Paraden des gegnerischen Torwarts',`${a.sv}/${a.ot} · ${pct(a.sv,a.ot)}`,'')+
@@ -1140,6 +1152,7 @@ function analyze(){
   if(pl.length){const w=[...pl].sort((a,b)=>a[1].g/a[1].s-b[1].g/b[1].s)[0],bst=[...pl].sort((a,b)=>b[1].g/b[1].s-a[1].g/a[1].s)[0];
     if(w[1].g/w[1].s<.4)add(att,'warn',`Schwache Quote aus ${w[0]}`,`${w[1].g} Tore aus ${w[1].s} Würfen aus ${w[0]}.`);
     if(bst[1].s>=4&&bst[1].g/bst[1].s>=.7)add(att,'good',`Stark aus ${bst[0]}`,`${bst[1].g} Tore aus ${bst[1].s} Würfen aus ${bst[0]}.`);}
+  const alu=PH.filter(e=>e.result==='pfosten').length;if(alu>=3)add(att,'info','Pfosten und Latte',`${alu}× Aluminium getroffen. Platzierung im Abschluss üben.`);
   if(A.tf>=3&&A.tf/A.n>=.15)add(att,'warn','Viele technische Fehler',`${A.tf} technische Fehler in ${A.n} Angriffen (${pct(A.tf,A.n)}).`);
   else if(A.n>=15&&!onlyRep&&A.tf<=1)add(att,'good','Kaum technische Fehler',`Nur ${A.tf} technischer Fehler in ${A.n} Angriffen.`);
   if(A.smn>=3&&!onlyRep){if(!A.sm)add(att,'info','Keine schnelle Mitte',`Nach ${A.smn} Gegentoren wurde keine schnelle Mitte gespielt.`);
@@ -1211,7 +1224,7 @@ function playerData(side){
     for(const e of sh.filter(e=>e.pos&&e.pos!=='7m')){(pos[e.pos]=pos[e.pos]||{s:0,g:0}).s++;if(e.result==='tor')pos[e.pos].g++;}
     const r=ros.find(p=>p.nr===nr);
     return{nr,name:(r&&r.name)||(rep[nr]&&rep[nr].name)||'',A,sh:sh.length,g:gl(sh),fs:fs.length,fg:gl(fs),bs:bs.length,bg:gl(bs),s7:s7.length,g7:gl(s7),
-      held:sh.filter(e=>e.result==='gehalten').length,miss:sh.filter(e=>e.result==='vorbei').length,blk:sh.filter(e=>e.result==='block').length,
+      held:sh.filter(e=>e.result==='gehalten').length,miss:sh.filter(e=>e.result==='vorbei').length,pfo:sh.filter(e=>e.result==='pfosten').length,blk:sh.filter(e=>e.result==='block').length,
       tf:A.filter(e=>e.result==='tf').length,drew:A.filter(e=>e.result==='7m').length,pos,rep:rep[nr],dfd:defData(side,nr),
       astL:side==='H'?posEv('H').filter(e=>e.ast===nr):[]};
   }).sort((a,b)=>(b.A.length+b.dfd.L.length+b.astL.length+(b.rep?b.rep.tore:0))-(a.A.length+a.dfd.L.length+a.astL.length+(a.rep?a.rep.tore:0))||a.nr-b.nr);
@@ -1235,7 +1248,7 @@ function playerSummary(d,side){
   if(d.sh)parts.push(`${d.g} ${d.g===1?'Tor':'Tore'} aus ${d.sh} Würfen (${pct(d.g,d.sh)})`);
   if(d.fs)parts.push(`frei ${d.fg}/${d.fs}`);if(d.bs)parts.push(`bedrängt ${d.bg}/${d.bs}`);if(d.s7)parts.push(`7m ${d.g7}/${d.s7}`);
   let t=parts.join(', ')+(parts.length?'.':'');
-  const fails=[];if(d.held)fails.push(`${d.held}× ${side==='H'?'gehalten':'pariert'}`);if(d.miss)fails.push(`${d.miss}× vorbei`);if(d.blk)fails.push(`${d.blk}× geblockt`);
+  const fails=[];if(d.held)fails.push(`${d.held}× ${side==='H'?'gehalten':'pariert'}`);if(d.miss)fails.push(`${d.miss}× vorbei`);if(d.pfo)fails.push(`${d.pfo}× Pfosten/Latte`);if(d.blk)fails.push(`${d.blk}× geblockt`);
   if(fails.length)t+=` Fehlwürfe: ${fails.join(', ')}.`;
   if(d.tf)t+=` ${d.tf} techn. Fehler.`;if(d.drew)t+=` ${d.drew} Siebenmeter herausgeholt.`;
   const P=Object.entries(d.pos).sort((a,b)=>b[1].s-a[1].s);if(P.length)t+=` Positionen: ${P.map(([k,v])=>`${k} ${v.g}/${v.s}`).join(', ')}.`;
@@ -1405,7 +1418,7 @@ function causeNames(e){const L=(S.cfg.causes&&S.cfg.causes[e.side])||[];return (
 function causeUsage(side,id){return posEv(side).filter(e=>(e.causes||[]).includes(id)).length;}
 const CF={offen:'Ohne Ursache',gegentore:'Gegentore',fehl:'Unsere Fehlwürfe',tf:'Techn. Fehler',alle:'Alle'};
 function causeFilter(f,e){if(f==='offen')return !(e.causes&&e.causes.length);if(f==='gegentore')return e.side==='G'&&e.result==='tor';
-  if(f==='fehl')return e.side==='H'&&['gehalten','vorbei','block'].includes(e.result);if(f==='tf')return e.side==='H'&&e.result==='tf';return true;}
+  if(f==='fehl')return e.side==='H'&&['gehalten','vorbei','pfosten','block'].includes(e.result);if(f==='tf')return e.side==='H'&&e.result==='tf';return true;}
 function causeSheet(f){
   const P=posEv(),L=P.filter(e=>causeFilter(f,e)),done=P.filter(e=>e.causes&&e.causes.length).length;
   let h=head('Ursachen nachtragen')+`<div class="pending">${done} von ${P.length} Ballbesitzen haben eine Ursache. Tippe eine oder mehrere an, die Auswahl wird sofort gespeichert. Angriffe bekommen Angriffsursachen, gegnerische Angriffe die Ursachen unserer Abwehr.</div>
