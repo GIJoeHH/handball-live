@@ -396,6 +396,9 @@ select.mini{font:inherit;font-size:12px;font-weight:600;color:var(--ink);backgro
 
 .stbtn{cursor:pointer;font:inherit;font-size:12px;font-weight:700}
 td.strong{font-weight:700;color:var(--ink)}
+
+#g_klsel{font:inherit;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:8px;padding:8px;width:100%}
+#g_klasse{margin-top:6px}
 </style>
 
 </head>
@@ -565,7 +568,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='25';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='26';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1301,7 +1304,7 @@ function renderPrep(){
     <label>Datum<input type="date" id="g_datum" value="${esc(g.datum)}"></label>
     <label>Anwurf<input type="time" id="g_zeit" value="${esc(g.zeit)}"></label>
     <label>Halle<input id="g_halle" value="${esc(g.halle)}" placeholder="z. B. Tegelsbarg"></label>
-    <label>Spielklasse<input id="g_klasse" value="${esc(g.klasse)}" placeholder="z. B. Oberliga mC"></label>
+    <label>Spielklasse${klasseSelectHTML()}</label>
     <label>Unser Team<input id="g_nameH" value="${esc(c.nameH)}"></label>
     <label>Halbzeitlänge (Minuten)<input type="number" id="g_half" min="10" max="30" value="${c.halfLen}"></label></div>
     <div class="radio" role="radiogroup" aria-label="Heim oder Gast">
@@ -1330,7 +1333,7 @@ function renderPrep(){
     <div class="row"><a class="tool primary linkbtn" href="#erfassen">Weiter zur Erfassung</a></div>
   </section>${scoutCard()}</div>`;
   const on=(id,f)=>{const el=$(id);if(el)el.onchange=()=>{f(el.value);save();};};
-  on('g_datum',v=>g.datum=v);on('g_zeit',v=>g.zeit=v);on('g_halle',v=>g.halle=v.trim());on('g_klasse',v=>g.klasse=v.trim());
+  on('g_datum',v=>g.datum=v);on('g_zeit',v=>g.zeit=v);on('g_halle',v=>g.halle=v.trim());bindKlasse();
   on('g_nameH',v=>{if(v.trim())c.nameH=v.trim();});
   on('g_half',v=>c.halfLen=Math.min(30,Math.max(10,+v||25)));on('g_tw',v=>g.torwart=v.trim());
   on('g_notiz',v=>g.notiz=v);on('g_plan',v=>g.plan=v);
@@ -2354,6 +2357,7 @@ function selectOpponent(name,typ){
     if(tp.players.length)S.cfg.rosterG=tp.players.map(p=>({nr:p.nr,name:p.name})).sort((a,b)=>a.nr-b.nr);
     if(!g.key.length)for(const p of tp.players.filter(p=>p.tore>=3).slice(0,3))g.key.push({nr:p.nr,note:keyNote(p)});
   }else{S.scout=null;if(!pr)S.cfg.rosterG=[];}
+  if(g.typ==='liga')fillGameFromSchedule(nm);
   save();
 }
 function prepareOpponent(name){selectOpponent(name,'liga');toast(S.cfg.nameG+' als Gegner übernommen');location.hash='#vorbereitung';}
@@ -2572,6 +2576,45 @@ async function reportSummary(code){
     ${r.ev?`<details class="pastebox"><summary><b>Spielverlauf</b></summary><div class="log">${ev.map(e=>`<div><span class="s ${e.team==='heim'?'H':e.team==='gast'?'G':'X'}"></span><span class="t num">${fmt(e.t)}</span><span>${e.st?'<b>'+esc(e.st)+'</b> · ':''}${label[e.k]||e.k}${e.team?' · '+esc(e.team==='heim'?H.team:G.team):''}${e.nr!=null?' · Nr. '+e.nr+' '+esc(nm(e.team,e.nr)):''}</span></div>`).join('')}</div></details>`:'<p class="pending">Den Spielverlauf zeigt die App, nachdem der Bericht einmal neu eingelesen wurde.</p>'}
     <div class="row">${pdf?'<button class="tool primary" id="rs_pdf">PDF öffnen</button>':'<span class="pending">PDF nicht auf diesem Gerät gespeichert (wird ab jetzt beim Einlesen gespeichert).</span>'}<button class="tool" data-close>Schließen</button></div>`);
   if(pdf)$('rs_pdf').onclick=()=>{const u=URL.createObjectURL(pdf),a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(u);},60000);};
+}
+
+/* Spieldaten aus dem Spielplan übernehmen */
+function nextGameVs(name){
+  const lim=Date.now()-3*36e5,L=leagueState();
+  const cands=[...Object.values(L.games||{}).map(g=>({...g,venue:g.field})),...schedList()].filter(g=>g.date&&((isOurTeam(g.home)&&matchTeam(g.away,name))||(isOurTeam(g.away)&&matchTeam(g.home,name))));
+  const fut=cands.filter(g=>!g.finished&&new Date(g.date).getTime()>lim).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+  if(!fut.length)return null;const g=fut[0];
+  const extra=cands.find(x=>x!==g&&x.venue&&Math.abs(new Date(x.date)-new Date(g.date))<36e5*36&&matchTeam(x.home,g.home));
+  return{...g,venue:g.venue||(extra&&extra.venue)||''};
+}
+function leagueName(){const L=leagueState();if(L.name)return L.name;const c=schedList().find(e=>e.comp&&!isCupComp(e.comp));if(c)return c.comp.split(' - ').pop();const r=Object.values(L.reports||{}).find(x=>x.klasse);return r?r.klasse:'';}
+function fillGameFromSchedule(name){
+  const g=nextGameVs(name),G=S.game;if(!g)return false;const d=new Date(g.date);
+  G.datum=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  G.zeit=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+  G.halle=g.venue||'';G.wir=isOurTeam(g.home)?'heim':'gast';
+  const kl=(g.comp&&!isCupComp(g.comp)?g.comp.split(' - ').pop():'')||leagueName();if(kl){G.klasse=normKl(kl);rememberKlasse(kl);}
+  save();return true;
+}
+/* Spielklasse: Auswahlliste mit Gedächtnis */
+function normKl(v){return String(v||'').replace(/&nbsp;|\u00a0/g,' ').replace(/\s+/g,' ').trim();}
+function klasseOptions(){
+  const c=S.cfg,set=new Set();const add=v=>{v=normKl(v);if(v)set.add(v);};
+  (c.klassen||[]).forEach(add);add(leagueName());add(c.teamClass);
+  schedList().forEach(e=>add(e.comp&&e.comp.split(' - ').pop()));Object.values(leagueState().reports||{}).forEach(r=>add(r.klasse));add(S.game.klasse);
+  return[...set];
+}
+function rememberKlasse(v){const c=S.cfg;v=normKl(v);if(!v)return;c.lastKlasse=v;c.klassen=[v,...(c.klassen||[]).map(normKl).filter(x=>x&&x!==v)].slice(0,12);}
+function klasseSelectHTML(){
+  const g=S.game;if(g.klasse)g.klasse=normKl(g.klasse);if(!g.klasse&&S.cfg.lastKlasse){g.klasse=normKl(S.cfg.lastKlasse);}
+  const opts=klasseOptions(),other=S._klOther;
+  return `<select id="g_klsel" aria-label="Spielklasse">${opts.map(o=>`<option value="${esc(o)}"${!other&&g.klasse===o?' selected':''}>${esc(o)}</option>`).join('')}${opts.length?'':'<option value="">– bitte wählen –</option>'}<option value="__other"${other?' selected':''}>Andere …</option></select>
+    ${other?`<input id="g_klasse" value="" placeholder="z. B. Hamburg-Pokal mC" aria-label="Spielklasse eingeben">`:''}`;
+}
+function bindKlasse(){
+  const sel=$('g_klsel');if(!sel)return;
+  sel.onchange=()=>{if(sel.value==='__other'){S._klOther=true;rePrep();setTimeout(()=>{const i=$('g_klasse');if(i)i.focus();},50);return;}S._klOther=false;S.game.klasse=sel.value;rememberKlasse(sel.value);save();};
+  const inp=$('g_klasse');if(inp)inp.onchange=()=>{const v=inp.value.trim();if(!v)return;S._klOther=false;S.game.klasse=v;rememberKlasse(v);save();rePrep();};
 }
 
 S=load();
