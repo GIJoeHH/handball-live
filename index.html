@@ -557,7 +557,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='19';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='20';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1796,7 +1796,7 @@ function renderStats(){
   $('st_get').onclick=()=>fetchSheet();
   document.querySelectorAll('[data-ssub]').forEach(b=>b.onclick=()=>{statSub=b.dataset.ssub;renderStats();});
   if($('sch_own'))$('sch_own').onchange=()=>{schedOwn=$('sch_own').checked;renderStats();};
-  document.querySelectorAll('[data-setrd]').forEach(s=>s.onchange=()=>{const e=(leagueState().sched||{})[s.dataset.setrd];if(e&&s.value){e.round=+s.value;save();renderStats();}});
+  document.querySelectorAll('[data-setrd]').forEach(s=>s.onchange=()=>{const e=(leagueState().sched||{})[s.dataset.setrd];if(e&&s.value){e.round=+s.value;e.roundManual=true;save();renderStats();}});
   document.querySelectorAll('[data-cand]').forEach(b=>b.onclick=()=>candSheet(+b.dataset.cand));
   document.querySelectorAll('[data-delsk]').forEach(b=>b.onclick=()=>{const L=leagueState();if(L.sched)delete L.sched[b.dataset.delsk];save();toast('Termin gelöscht');renderStats();});
   document.querySelectorAll('[data-delrd]').forEach(b=>b.onclick=()=>{const v=b.dataset.delrd,L=leagueState(),ks=Object.keys(L.sched||{}).filter(k=>v==='none'?!L.sched[k].round&&!scheduleRows().some(r=>r.sk===k&&r.round):(L.sched[k].round===+v||scheduleRows().some(r=>r.sk===k&&r.round===+v)));
@@ -1866,8 +1866,8 @@ function fetchSheet(){
       ${IS_WEBAPP?'<label class="check"><input type="checkbox" id="fx_logos" checked> Vereinslogos übernehmen</label>':''}<div id="fx_hbst" class="pending"></div></div>
     <div class="stepc"><b>Spielplan-Text einfügen</b><div class="pending">Auf der Teamseite von handball.net die Liste der Spiele markieren (alle Spiele sichtbar scrollen), kopieren und hier einfügen. Die App erkennt Datum, Uhrzeit, Paarung, Ergebnis und Status.</div>
       <textarea id="fx_txt" class="pastearea" placeholder="Sa, 12.09.2026&#10;Oberliga männliche C-Jugend …&#10;BEENDET&#10;…"></textarea><div class="row"><label class="check">Spieltag <select id="fx_round" aria-label="Spieltag der eingefügten Spiele"><option value="">nicht angeben (Teamseite)</option>${Array.from({length:(L.rounds&&L.rounds.total)||18},(_,i)=>`<option value="${i+1}">${i+1}</option>`).join('')}</select></label><button class="tool" id="fx_txtgo">Spielplan übernehmen</button></div>
-      <div class="pending">Ganze Liga: auf der Ligaseite einen Spieltag wählen, Spiele kopieren, hier den Spieltag angeben und übernehmen. Für jeden Spieltag wiederholen. Schon vorhandene Spiele werden dabei nur um den Spieltag ergänzt.</div><div id="fx_txtst" class="pending"></div>
-      ${Object.keys(L.sched||{}).length?`<div class="row"><span class="pending">${Object.keys(L.sched).length} eingefügte Termine gespeichert</span><button class="mini danger" id="fx_clr">Alle eingefügten Termine löschen</button></div>`:''}</div>
+      <div class="pending">Ganze Liga: Spiele aller Spieltage kopieren und ohne Spieltag einfügen. Die App erkennt die Spieltage an den Wochenenden und ordnet Nachholspiele zu. Alternativ einen einzelnen Spieltag angeben. Von Hand gewählte Spieltage bleiben immer erhalten.</div><div id="fx_txtst" class="pending"></div>
+      ${Object.keys(L.sched||{}).length?`<div class="row"><span class="pending">${Object.keys(L.sched).length} eingefügte Termine gespeichert</span><button class="mini" id="fx_auto">Spieltage automatisch erkennen</button><button class="mini danger" id="fx_clr">Alle eingefügten Termine löschen</button></div>`:''}</div>
     ${hbGamesHTML()}
     <div class="stepc"><b><span class="stepn">1</span>Staffel auf handball.net öffnen</b>
       <label class="fl">Link zum Spielplan eurer Staffel (einmalig eintragen)<input type="url" id="fx_url" value="${esc(L.url)}" placeholder="https://www.handball.net/…"></label>
@@ -1883,10 +1883,11 @@ function fetchSheet(){
     <div class="row"><button class="tool" data-close>Fertig</button></div>`;
   openSheet(h);
   $('fx_url').onchange=()=>{L.url=$('fx_url').value.trim();save();fetchSheet();};
+  if($('fx_auto'))$('fx_auto').onclick=()=>{const ar=autoRounds();fetchSheet();$('fx_txtst').innerHTML=ar?'<span class="st ok">'+esc(autoRoundsMsg(ar))+'</span>':'<span class="err">Für die Erkennung werden die Termine der ganzen Liga gebraucht (mehrere Teams).</span>';};
   if($('fx_clr'))$('fx_clr').onclick=()=>{openSheet(head('Alle Termine löschen?')+`<p>Alle ${Object.keys(L.sched||{}).length} eingefügten Termine werden gelöscht. Eingelesene Spielberichte und Daten von handball.net bleiben erhalten.</p><div class="row"><button class="tool danger" id="cl_all">Alle löschen</button><button class="tool" data-close>Abbrechen</button></div>`);
     $('cl_all').onclick=()=>{L.sched={};save();closeSheet();toast('Alle eingefügten Termine gelöscht');fetchSheet();};};
-  $('fx_txtgo').onclick=()=>{const list=parseTeamText($('fx_txt').value),rd=+$('fx_round').value||null;if(rd)list.forEach(e=>e.round=rd);if(!list.length){$('fx_txtst').innerHTML='<span class="err">Keine Spiele erkannt. Bitte die Liste mit Datum, Status und Teams kopieren.</span>';return;}
-    const r=applySched(list),done=list.filter(e=>e.finished).length;toast(`${list.length} Termine${rd?' von Spieltag '+rd:''} übernommen (${done} mit Ergebnis)`);$('fx_txt').value='';fetchSheet();if(view==='statistik')renderStats();};
+  $('fx_txtgo').onclick=()=>{const list=parseTeamText($('fx_txt').value),rd=+$('fx_round').value||null;if(rd)list.forEach(e=>{e.round=rd;e.roundManual=true;});if(!list.length){$('fx_txtst').innerHTML='<span class="err">Keine Spiele erkannt. Bitte die Liste mit Datum, Status und Teams kopieren.</span>';return;}
+    const r=applySched(list),done=list.filter(e=>e.finished).length,ar=rd?null:autoRounds();toast(`${list.length} Termine${rd?' von Spieltag '+rd:''} übernommen (${done} mit Ergebnis)`);$('fx_txt').value='';fetchSheet();if(ar&&$('fx_txtst'))$('fx_txtst').innerHTML='<span class="st ok">'+esc(autoRoundsMsg(ar))+'</span>';if(view==='statistik')renderStats();};
   $('fx_hb').onchange=async ev=>{const files=[...ev.target.files];if(!files.length)return;const st=$('fx_hbst');const ids=new Set();let T=0,N=0,SC=0,bad=[];
     for(const f of files){try{const txt=new TextDecoder('utf-8').decode(await f.arrayBuffer());const P=parseHbnet(txt);
         if(!P||(!P.games.length&&!P.teams.length&&!(P.sched||[]).length)){bad.push(f.name);continue;}const r=applyHbnet(P,!!($('fx_logos')&&$('fx_logos').checked));if(P.sched&&P.sched.length){const q=applySched(P.sched);SC+=q.total;}P.games.forEach(g=>ids.add(g.id));T=Math.max(T,r.teams);N+=r.newOpp;}
@@ -2437,6 +2438,33 @@ function candSheet(r){
     <div class="row"><button class="tool primary" id="cs_imp">Berichte einlesen</button><button class="tool" data-close>Schließen</button></div>`);
   $('cs_imp').onclick=()=>{closeSheet();fetchSheet();setTimeout(()=>{const f=$('fx_files');if(f)f.scrollIntoView({block:'center'});},50);};
 }
+
+/* ---------- Spieltage automatisch aus den Terminen der ganzen Liga erkennen ---------- */
+function weekendKey(iso){const x=new Date(iso);const off={5:1,6:0,0:-1,1:-2}[x.getDay()];if(off===undefined)return null;const s=new Date(x.getFullYear(),x.getMonth(),x.getDate()+off);return s.getFullYear()+'-'+String(s.getMonth()+1).padStart(2,'0')+'-'+String(s.getDate()).padStart(2,'0');}
+function autoRounds(){
+  const all=schedList().filter(e=>e.date&&!isCupComp(e.comp)),teams=new Set();
+  all.forEach(e=>{teams.add(normT(e.home));teams.add(normT(e.away));});
+  const N=Math.floor(teams.size/2);if(teams.size<4||all.length<N*3)return null;
+  const byDate=(a,b)=>String(a.date).localeCompare(String(b.date)),clusters=new Map(),left=[];
+  for(const e of all){const k=weekendKey(e.date);if(!k){left.push(e);continue;}if(!clusters.has(k))clusters.set(k,[]);clusters.get(k).push(e);}
+  let r=0;const RT={},RD={},A=new Map();
+  for(const [k,gs] of [...clusters.entries()].sort((a,b)=>a[0].localeCompare(b[0]))){
+    if(gs.length<Math.ceil(N/2)){left.push(...gs);continue;}
+    r++;RT[r]=new Set();RD[r]=k;
+    for(const g of gs.sort(byDate)){const a=normT(g.home),b=normT(g.away);if(RT[r].has(a)||RT[r].has(b)){left.push(g);continue;}RT[r].add(a);RT[r].add(b);A.set(g,r);}}
+  let open=0;
+  for(const g of left.sort(byDate)){const a=normT(g.home),b=normT(g.away),d=String(g.date).slice(0,10);let best=null;
+    for(let i=1;i<=r;i++){if(RD[i]>d)break;if(!RT[i].has(a)&&!RT[i].has(b)){best=i;break;}}
+    if(best==null)for(let i=1;i<=r;i++){if(!RT[i].has(a)&&!RT[i].has(b)){best=i;break;}}
+    if(best!=null){RT[best].add(a);RT[best].add(b);A.set(g,best);}else open++;}
+  const L=leagueState(),offs=[];
+  const coded=[...Object.values(L.games||{}).map(g=>({code:g.code,home:g.home,away:g.away})),...Object.values(L.reports||{}).map(x=>({code:x.nr,home:x.heim.team,away:x.gast.team}))];
+  for(const c of coded){const cr=codeRound(c.code);if(!cr)continue;const g=[...A.keys()].find(e=>matchTeam(e.home,c.home)&&matchTeam(e.away,c.away));if(g)offs.push(cr.round-A.get(g));}
+  const cnt={};offs.forEach(o=>cnt[o]=(cnt[o]||0)+1);const off=offs.length?+Object.entries(cnt).sort((x,y)=>y[1]-x[1])[0][0]:0;
+  let set=0;for(const [g,rr] of A){if(g.roundManual)continue;g.round=rr+off;g.roundAuto=true;set++;}
+  save();return{rounds:r,catchup:left.length-open,open,anchors:offs.length,ok:offs.filter(o=>o===off).length,set};
+}
+function autoRoundsMsg(res){if(!res)return '';return `Spieltage erkannt: ${res.rounds} Spieltage${res.catchup?', '+res.catchup+' Nachholspiel'+(res.catchup>1?'e':'')+' zugeordnet':''}${res.open?', '+res.open+' nicht zuordenbar':''}${res.anchors?` · Kontrolle über Spielnummern: ${res.ok} von ${res.anchors} passen`:''}.`;}
 
 S=load();
 if(!S){S=fresh();loadDemo();}
