@@ -181,6 +181,8 @@ th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--mute
 .navmeta{margin-left:auto;font-size:13px;color:var(--muted);font-weight:600}
 @media (max-width:640px){.navtab{font-size:16px;padding:0 10px 0 6px}.navmeta{display:none}}
 .view{display:grid;gap:10px}
+.prep>.pcol{display:grid;gap:10px;align-content:start;min-width:0}.prep>.wide{grid-column:1/-1}
+.ownteam{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.ownteam small{color:var(--muted);width:100%}.ownteam .mini{width:auto;flex:0 0 auto;margin:0}
 .prep,.cols2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:start}
 @media (max-width:900px){.prep,.cols2{grid-template-columns:1fr}}
 .ch{font-family:var(--font-display);font-size:23px;margin:0;text-wrap:balance}
@@ -568,7 +570,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='26';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='27';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1092,7 +1094,7 @@ async function readPdf(file){
 const repGoals=R=>R.events.filter(e=>e.kind==='goal'||e.kind==='goal7');
 function guessOurTeam(R){
   const tok=s=>String(s||'').toUpperCase().replace(/HH/g,'HAMBURG').split(/[^A-ZÄÖÜ0-9]+/).filter(t=>t.length>1);
-  const mine=new Set(tok(S.cfg.nameH));const sc=k=>tok(R.meta[k]).filter(t=>mine.has(t)).length;
+  const mine=new Set([...tok(S.cfg.nameH),...tok(S.cfg.schedName)]);const sc=k=>tok(R.meta[k]).filter(t=>mine.has(t)).length;
   const names=new Set(S.cfg.rosterH.map(p=>p.name).filter(Boolean));const rs=k=>R.roster[k].filter(p=>names.has(p.name)).length;
   const h=sc('heim')+rs('heim')*2,g=sc('gast')+rs('gast')*2;return g>h?'gast':'heim';
 }
@@ -1104,7 +1106,7 @@ function reportSheet(){
     <span class="pending">Den Spielbericht auf handball.net beim Spiel als PDF herunterladen und hier auswählen. Die Datei wird nur auf diesem Gerät gelesen.</span>
     <span id="r_status" class="pending"></span></div>`;
   if(R){
-    const inv=matchTeam(R.meta.heim,S.cfg.nameH)?'heim':matchTeam(R.meta.gast,S.cfg.nameH)?'gast':null;
+    const inv=isOurTeam(R.meta.heim)?'heim':isOurTeam(R.meta.gast)?'gast':null;
     const G=repGoals(R),ours=inv||S.reportOurs||S.game.wir||guessOurTeam(R);S.reportOurs=ours;
     const cnt=(k,t)=>R.events.filter(e=>e.kind===k&&(!t||e.team===t)).length;
     h+=`<div class="facts">
@@ -1131,7 +1133,7 @@ function reportSheet(){
     catch(err){$('r_status').innerHTML='<span class="err">'+esc(err.message||err)+'</span>';}};
   if(!R)return;
   document.querySelectorAll('[name=r_ours]').forEach(r=>r.onchange=()=>{S.reportOurs=r.value;save();});
-  const takeOver=()=>{const ours=S.reportOurs,opp=ours==='heim'?'gast':'heim';if(!(matchTeam(R.meta.heim,S.cfg.nameH)||matchTeam(R.meta.gast,S.cfg.nameH)))return;
+  const takeOver=()=>{const ours=S.reportOurs,opp=ours==='heim'?'gast':'heim';if(!(isOurTeam(R.meta.heim)||isOurTeam(R.meta.gast)))return;
     if($('r_roster').checked){if(R.roster[ours].length)mergeOwnRoster(R.roster[ours]);if(R.roster[opp].length)S.cfg.rosterG=R.roster[opp].map(p=>({nr:p.nr,name:p.name}));}
     if($('r_names').checked){if(R.meta[opp])S.cfg.nameG=R.meta[opp];}};
   $('r_only').onclick=()=>{takeOver();save();closeSheet();toast('Kader und Namen übernommen');};
@@ -1299,18 +1301,23 @@ const parseRoster=v=>v.split('\n').map(l=>{const m=/^\s*(\d{1,3})\s*(.*)$/.exec(
 function ourTeam(){return S.reportOurs||S.game.wir||(S.report?guessOurTeam(S.report):'heim');}
 function renderPrep(){
   const g=S.game,c=S.cfg;
-  $('view-vorbereitung').innerHTML=`<div class="prep">
+  $('view-vorbereitung').innerHTML=`<div class="prep"><div class="pcol">
   <section class="card"><h2 class="ch">Spiel</h2><div class="form">
     <label>Datum<input type="date" id="g_datum" value="${esc(g.datum)}"></label>
     <label>Anwurf<input type="time" id="g_zeit" value="${esc(g.zeit)}"></label>
     <label>Halle<input id="g_halle" value="${esc(g.halle)}" placeholder="z. B. Tegelsbarg"></label>
     <label>Spielklasse${klasseSelectHTML()}</label>
-    <label>Unser Team<input id="g_nameH" value="${esc(c.nameH)}"></label>
+    <div class="fl ownteam"><small>Unser Team</small><b>${esc(c.nameH)}</b><button class="mini" id="g_ownset">in Einstellungen ändern</button></div>
     <label>Halbzeitlänge (Minuten)<input type="number" id="g_half" min="10" max="30" value="${c.halfLen}"></label></div>
     <div class="radio" role="radiogroup" aria-label="Heim oder Gast">
       <label><input type="radio" name="g_wir" value="heim" ${g.wir==='heim'?'checked':''}> Wir spielen zu Hause</label>
       <label><input type="radio" name="g_wir" value="gast" ${g.wir==='gast'?'checked':''}> Wir sind Gast</label></div>
   </section>
+  <section class="card"><h2 class="ch">Kader</h2><div class="form">
+    <div class="fl">${rosterSummaryHTML()}</div>
+    <label>Kader Gegner<textarea id="g_rG" style="min-height:250px">${esc(rosterText(c.rosterG))}</textarea></label></div>
+  </section>
+  </div><div class="pcol">
   <section class="card"><h2 class="ch">${logoImg(c.nameG,'md')}Gegner${['Gegner','Beispielgegner'].includes(c.nameG)?'':': '+esc(c.nameG)}${(g.typ||'liga')!=='liga'?` <span class="st diff">${TYP_LABEL[g.typ]}</span>`:''}${(()=>{const e=oppEntry(c.nameG);return e&&okUrl(e.url)?' '+linkBtn(e.url,'Teamspielplan öffnen','inline'):'';})()}</h2>
     ${oppSelectHTML()}${oppInfoHTML()}
     <div class="label"><span>Abwehrsystem</span></div>
@@ -1322,19 +1329,15 @@ function renderPrep(){
       return `<div class="find ${f.weak.length?'good':'info'}"><span><b>Torwart ${esc(g.nr==null?'':ks.nameOf(g.nr))} aus ${ks.games.length} Spiel${ks.games.length>1?'en':''}:</b> ${g.L.filter(e=>e.result==='gehalten').length} Paraden bei ${g.L.length} Würfen${f.weak.length?' · schwach '+f.weak.map(([k,o])=>GZ_LABEL[k]+' ('+o.g+'/'+o.n+')').join(', '):''}${f.strong.length?' · stark '+f.strong.map(([k])=>GZ_LABEL[k]).join(', '):''}. Details im Reiter Statistik.</span></div>`;})()}
     <label class="fl">Notizen zum Gegner<textarea id="g_notiz" placeholder="Angriffsverhalten, Tempo, Auffälligkeiten aus dem letzten Spiel">${esc(g.notiz)}</textarea></label>
   </section>
-  <section class="card"><h2 class="ch">Kader</h2><div class="form">
-    <div class="fl">${rosterSummaryHTML()}</div>
-    <label>Kader Gegner<textarea id="g_rG" style="min-height:250px">${esc(rosterText(c.rosterG))}</textarea></label></div>
-  </section>
   <section class="card"><h2 class="ch">Schwerpunkte für das Spiel</h2>
     <label class="fl">Was wollen wir heute umsetzen? Ein Punkt pro Zeile, erscheint später in der Analyse.<textarea id="g_plan" placeholder="Schnelle Mitte nach jedem Gegentor">${esc(g.plan)}</textarea></label>
     <div class="label"><span>Aktive Spielzüge</span><button class="mini" id="g_plays">Spielzüge bearbeiten</button></div>
     <div class="pending">${c.playsH.filter(p=>p.active).map(p=>esc(p.name)).join(' · ')||'keine'}</div>
     <div class="row"><a class="tool primary linkbtn" href="#erfassen">Weiter zur Erfassung</a></div>
-  </section>${scoutCard()}</div>`;
+  </section></div>${scoutCard()}</div>`;
   const on=(id,f)=>{const el=$(id);if(el)el.onchange=()=>{f(el.value);save();};};
   on('g_datum',v=>g.datum=v);on('g_zeit',v=>g.zeit=v);on('g_halle',v=>g.halle=v.trim());bindKlasse();
-  on('g_nameH',v=>{if(v.trim())c.nameH=v.trim();});
+  if($('g_ownset'))$('g_ownset').onclick=()=>{location.hash='#einstellungen';};
   on('g_half',v=>c.halfLen=Math.min(30,Math.max(10,+v||25)));on('g_tw',v=>g.torwart=v.trim());
   on('g_notiz',v=>g.notiz=v);on('g_plan',v=>g.plan=v);
   on('g_rH',v=>{const r=parseRoster(v);if(r.length)c.rosterH=r;});on('g_rG',v=>{const r=parseRoster(v);if(r.length)c.rosterG=r;});
@@ -1753,7 +1756,12 @@ function teamAgg(t){
   return{n,players,tot:t.gf,w:t.s,d:t.u,l:t.n,gf:avg(t.gf),ga:avg(t.ga),h1:av(H,g=>g.h1f),h2:av(H,g=>g.gf-g.h1f),h1a:av(H,g=>g.h1a),h2a:av(H,g=>g.ga-g.h1a),pens:av(P,g=>g.pens),
     g7:players.reduce((s,p)=>s+p.g7,0),a7:players.reduce((s,p)=>s+p.a7,0)};
 }
-const isOurTeam=name=>matchTeam(name,S.cfg.nameH);
+const ourSchedName=()=>(S.cfg.schedName||'').trim();
+const isOurTeam=name=>{if(!name)return false;const s=ourSchedName();return s?(normT(name)===normT(s)||matchTeam(name,s)):matchTeam(name,S.cfg.nameH);};
+function knownTeamNames(){const m=new Map();const add=v=>{v=String(v||'').trim();if(v&&!m.has(normT(v)))m.set(normT(v),v);};
+  const L=leagueState();Object.values(L.games||{}).forEach(g=>{add(g.home);add(g.away);});schedList().forEach(e=>{add(e.home);add(e.away);});
+  Object.values(L.reports||{}).forEach(r=>{add((r.heim||{}).team);add((r.gast||{}).team);});
+  return[...m.values()].sort((a,b)=>a.localeCompare(b,'de'));}
 function evStats(E,side){
   const P=E.filter(e=>e.type==='pos'&&e.side===side),sh=P.filter(e=>SHOT.includes(e.result)),fr=sh.filter(e=>e.quality==='frei'&&e.start!=='7m'),ot=sh.filter(e=>e.result==='tor'||e.result==='gehalten');
   return{n:P.filter(e=>!e.keep).length,g:P.filter(e=>e.result==='tor').length,sh:sh.length,fr:fr.length,frg:fr.filter(e=>e.result==='tor').length,
@@ -1932,6 +1940,9 @@ function teamSettingsHTML(){
     <label>Mannschaft / Altersklasse<input id="t_class" value="${esc(c.teamClass)}" placeholder="z. B. männliche C-Jugend II"></label>
     <label>Halbzeitlänge (Minuten)<input id="t_half" type="number" min="10" max="30" value="${c.halfLen}"></label></div>
     <div class="row">${logoPicker(c.nameH,'lg_own')}<span class="pending">Vereinslogo, erscheint in der Anzeigetafel, der Tabelle und beim Mannschaftswechsel</span></div>
+    <h3>Unser Team im Spielplan</h3><div class="form">
+      <label>So heißt unser Team bei handball.net<select id="t_sched"><option value="">automatisch nach Teamname${(()=>{if(ourSchedName())return '';const f=knownTeamNames().filter(isOurTeam);return f.length?' (erkannt: '+esc(f.join(', '))+')':' (nichts erkannt)';})()}</option>${(()=>{const L=knownTeamNames(),s=ourSchedName();if(s&&!L.some(x=>normT(x)===normT(s)))L.unshift(s);return L.map(x=>`<option value="${esc(x)}"${s&&normT(x)===normT(s)?' selected':''}>${esc(x)}</option>`).join('');})()}</select></label></div>
+    <div class="pending">Damit erkennt die App unsere Spiele in Spielplan, Tabelle und Spielberichten. Der Teamname oben bleibt immer so, wie du ihn eingegeben hast, und wird nie durch handball.net oder Spielberichte geändert.</div>
     <h3>handball.net</h3><div class="form">
       <label>Spielplan der Staffel<input type="url" id="t_lurl" value="${esc(leagueState().url||'')}" placeholder="https://www.handball.net/…"></label>
       <label>Tabelle der Staffel<input type="url" id="t_ltab" value="${esc(linksOf().table||'')}" placeholder="https://www.handball.net/…"></label>
@@ -1956,7 +1967,7 @@ function bindTeamSettings(){
   const onUrl=(id,f)=>{const el=$(id);if(el)el.onchange=()=>{const v=el.value.trim();if(v&&!okUrl(v)){toast('Bitte einen vollständigen Link mit https:// eingeben');return;}f(v);save();toast('Link gespeichert');re();};};
   onUrl('t_lurl',v=>leagueState().url=v);onUrl('t_ltab',v=>linksOf().table=v);onUrl('t_lteam',v=>linksOf().team=v);
   bindLogos($('view-einstellungen'),re);
-  on('t_club',v=>c.club=v.trim());on('t_name',v=>{if(v.trim())c.nameH=v.trim();});on('t_class',v=>c.teamClass=v.trim());on('t_half',v=>c.halfLen=Math.min(30,Math.max(10,+v||25)));
+  on('t_club',v=>c.club=v.trim());on('t_name',v=>{if(v.trim())c.nameH=v.trim();});on('t_class',v=>c.teamClass=v.trim());on('t_sched',v=>{c.schedName=v;re();});on('t_half',v=>c.halfLen=Math.min(30,Math.max(10,+v||25)));
   const drop7=nr=>{for(const k in c.start7)if(c.start7[k]===nr)delete c.start7[k];};
   document.querySelectorAll('[data-rnr]').forEach(i=>i.onchange=()=>{const p=R[+i.dataset.rnr],n=parseInt(i.value,10);if(isNaN(n)||n<0||n>99){i.value=p.nr;return;}
     for(const k in c.start7)if(c.start7[k]===p.nr)c.start7[k]=n;p.nr=n;save();re();});
@@ -2144,6 +2155,7 @@ function mergeState(loc,rem){
   out.archive=unionBy(newer.archive,older.archive,g=>g.id);
   if(older.scout&&older.scout.reports){if(!out.scout)out.scout=older.scout;else if(normT(out.scout.team)===normT(older.scout.team))out.scout.reports=unionBy(out.scout.reports,older.scout.reports,r=>r.nr);}
   out.opp=Object.assign({},older.opp||{},out.opp||{});
+  if(loc.cfg&&out.cfg&&loc.cfg.nameH){out.cfg.nameH=loc.cfg.nameH;out.cfg.schedName=loc.cfg.schedName||out.cfg.schedName||'';}
   return{state:out,remNewer,lostGame:(older.events||[]).filter(e=>e.type==='pos').length&&!older.demo&&JSON.stringify(older.events)!==JSON.stringify(newer.events)?(older.events||[]).filter(e=>e.type==='pos').length:0,lostSide:remNewer?'Gerät':'Datei'};
 }
 function onlyDemo(){const I=ensureIndex();return I.teams.length===1&&(S.demo||!posEv().length)&&!(S.archive||[]).length&&!Object.keys((S.league||{}).reports||{}).length;}
