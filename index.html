@@ -530,7 +530,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='11';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='12';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -2104,7 +2104,7 @@ function syncHTML(){
       <li><b>Einmalig:</b> In iCloud Drive einen Ordner „Handball Live“ anlegen. Für externe Personen: Ordner im Finder mit Rechtsklick → Teilen → Personen hinzufügen, mit „Darf Änderungen vornehmen“.</li>
       <li><b>iPad speichern:</b> „In iCloud speichern“ → im Teilen-Menü „In Dateien sichern“ → iCloud Drive → Handball Live → Sichern, bei Nachfrage „Ersetzen“.</li>
       <li><b>Mac mit Chrome oder Edge:</b> „Ordner verbinden“ und den iCloud-Ordner wählen. Danach speichert die App automatisch.</li>
-      <li><b>Mac mit Safari:</b> Die Datei landet im Download-Ordner. Tipp: In Safari → Einstellungen → Allgemein den Download-Ort auf den iCloud-Ordner „Handball Live“ stellen.</li>
+      <li><b>Mac mit Safari:</b> Die Datei landet im Download-Ordner und muss in den iCloud-Ordner verschoben werden (von Hand oder per Automator-Ordneraktion). Bequemer ist Chrome oder Edge mit „Ordner verbinden“.</li>
       <li><b>Laden:</b> „Aus iCloud laden“ und die Datei ${SYNC_FILE} wählen. Beim ersten Mal auf einem neuen Gerät „Komplett ersetzen“, danach „Zusammenführen“.</li>
       <li><b>Regel:</b> Nach dem Spiel auf dem iPad speichern, vor der Arbeit am Mac laden – und umgekehrt. Gleichzeitig auf zwei Geräten am selben Spiel arbeiten geht nicht.</li></ol></details>`;
 }
