@@ -367,6 +367,11 @@ td.win{color:var(--good);font-weight:700} td.loss{color:var(--def);font-weight:7
 .nextg{margin-top:4px;font-size:14px;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
 
 .hbg tr.guess td{color:var(--muted)}
+
+.stsub{margin:0}
+.sched tr.rdh td{background:var(--surface-2);font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:700;padding-top:10px}
+.sched tr.rdh.cur td{color:var(--att)}
+td.draw{color:var(--warn);font-weight:700}
 </style>
 
 </head>
@@ -536,7 +541,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='14';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='15';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1544,11 +1549,12 @@ const parseM7=s=>{const m=/^(\d+)\/(\d+)$/.exec(s||'');return m?[+m[1],+m[2]]:[0
 function repSummary(R,side){
   const o=side==='heim'?'gast':'heim',ht=halfOfReport(R),G=repGoals(R);
   const cnt=(t,h)=>G.filter(e=>e.team===t&&(h==null||(h===1?e.t<ht:e.t>=ht))).length;
-  let gf=cnt(side),ga=cnt(o),h1f=cnt(side,1),h1a=cnt(o,1);
-  const m=/(\d+):(\d+)\s*\((\d+)-(\d+)\)/.exec(R.meta.endstand||'');
-  if(m&&!G.length){const [a,b,c,d]=m.slice(1).map(Number);gf=side==='heim'?a:b;ga=side==='heim'?b:a;h1f=side==='heim'?c:d;h1a=side==='heim'?d:c;}
+  let gf=cnt(side),ga=cnt(o),h1f=cnt(side,1),h1a=cnt(o,1),src='verlauf';
+  const m=/(\d+)\s*:\s*(\d+)\s*\((\d+)\s*[-:]\s*(\d+)\)/.exec(R.meta.endstand||''),m2=/(\d+)\s*:\s*(\d+)/.exec(R.meta.endstand||'');
+  if(m){const [a,b,c,d]=m.slice(1).map(Number);gf=side==='heim'?a:b;ga=side==='heim'?b:a;h1f=side==='heim'?c:d;h1a=side==='heim'?d:c;src='endstand';}
+  else if(m2){const [a,b]=m2.slice(1).map(Number);gf=side==='heim'?a:b;ga=side==='heim'?b:a;src='endstand';}
   return{nr:R.meta.nr||(R.meta.datum+'|'+R.meta.heim),datum:(R.meta.datum||'').split(',')[0],dk:dateKey(R.meta.datum),team:R.meta[side]||'',gegner:R.meta[o]||'',hg:side,
-    gf,ga,h1f,h1a,pens:R.events.filter(e=>(e.kind==='pen'||e.kind==='dq')&&e.team===side).length,to:R.events.filter(e=>e.kind==='timeout'&&e.team===side).length,
+    gf,ga,h1f,h1a,src,pens:R.events.filter(e=>(e.kind==='pen'||e.kind==='dq')&&e.team===side).length,to:R.events.filter(e=>e.kind==='timeout'&&e.team===side).length,
     roster:R.roster[side].map(p=>({nr:p.nr,name:p.name,tore:p.tore,m7:p.m7}))};
 }
 function sideFor(R,team){
@@ -1675,9 +1681,10 @@ function leagueState(){if(!S.league)S.league={url:'',updated:null,reports:{}};re
 function addToLeague(R){
   if(!R||!R.meta||(!R.meta.heim&&!R.meta.gast))return false;
   const L=leagueState(),nr=R.meta.nr||((R.meta.datum||'')+'|'+R.meta.heim);
-  if(L.reports[nr])return false;
-  L.reports[nr]={nr,datum:(R.meta.datum||'').split(',')[0],dk:dateKey(R.meta.datum),spieltag:R.meta.spieltag||null,klasse:R.meta.klasse||'',heim:repSummary(R,'heim'),gast:repSummary(R,'gast')};
-  L.updated=Date.now();return true;
+  const ex=L.reports[nr];
+  L.reports[nr]={endstand:R.meta.endstand||'',nr,datum:(R.meta.datum||'').split(',')[0],dk:dateKey(R.meta.datum),spieltag:R.meta.spieltag||null,klasse:R.meta.klasse||'',heim:repSummary(R,'heim'),gast:repSummary(R,'gast')};
+  L.updated=Date.now();if(!ex)return true;
+  const old=ex.heim||{},nw=L.reports[nr].heim;return (old.gf!==nw.gf||old.ga!==nw.ga||!ex.endstand)?'upd':false;
 }
 const teamTok=s=>normT(s).replace(/\bHH\b/g,'HAMBURG').split(/[^A-ZÄÖÜ0-9]+/).filter(t=>t.length>1||/^[2-4]$/.test(t));
 function matchTeam(a,b){
@@ -1687,21 +1694,26 @@ function matchTeam(a,b){
   return ov>=Math.min(2,A.length,B.length)&&ov>0;
 }
 function leagueTable(){
-  const T={};
+  const T={},off=officialResults(),seen=new Set();
+  const team=name=>{const k=normT(name);return T[k]||(T[k]={name,sp:0,s:0,u:0,n:0,gf:0,ga:0,games:[],P:{}});};
+  const book=(t,gf,ga)=>{t.sp++;t.gf+=gf;t.ga+=ga;if(gf>ga)t.s++;else if(gf===ga)t.u++;else t.n++;};
+  for(const g of Object.values(off)){if(leagueState().reports[g.code])continue;seen.add(g.code);
+    for(const [nm,opp,gf,ga,hg] of [[g.home,g.away,g.hs,g.as,'heim'],[g.away,g.home,g.as,g.hs,'gast']]){const t=team(nm);book(t,gf,ga);
+      t.games.push({team:nm,gegner:opp,hg,gf,ga,h1f:null,h1a:null,pens:null,to:null,roster:[],datum:g.date?new Date(g.date).toLocaleDateString('de-DE'):'',dk:String(g.date||'').slice(0,10).replace(/-/g,''),spieltag:g.round,nr:g.code});}}
   for(const r of Object.values(leagueState().reports))for(const side of ['heim','gast']){
-    const x=r[side];if(!x||!x.team)continue;const k=normT(x.team);
-    const t=T[k]||(T[k]={name:x.team,sp:0,s:0,u:0,n:0,gf:0,ga:0,h1f:0,h1a:0,pens:0,games:[],P:{}});
-    t.sp++;t.gf+=x.gf;t.ga+=x.ga;t.h1f+=x.h1f;t.h1a+=x.h1a;t.pens+=x.pens;
-    if(x.gf>x.ga)t.s++;else if(x.gf===x.ga)t.u++;else t.n++;
-    t.games.push({...x,datum:r.datum,dk:r.dk,spieltag:r.spieltag,nr:r.nr});
+    const x0=r[side];if(!x0||!x0.team)continue;const o=off[r.nr];
+    const x=o?{...x0,gf:side==='heim'?o.hs:o.as,ga:side==='heim'?o.as:o.hs}:x0;
+    const t=team(x.team);book(t,x.gf,x.ga);
+    t.games.push({...x,datum:r.datum,dk:r.dk,spieltag:r.spieltag||(codeRound(r.nr)||{}).round||null,nr:r.nr});
     for(const p of x.roster||[]){const pk=p.name?normT(p.name):'#'+p.nr;const pp=t.P[pk]||(t.P[pk]={name:p.name,nr:p.nr,dk:'',games:0,tore:0,g7:0,a7:0,best:0});
       pp.games++;pp.tore+=p.tore;const [g7,a7]=parseM7(p.m7);pp.g7+=g7;pp.a7+=a7;pp.best=Math.max(pp.best,p.tore);if(r.dk>=pp.dk){pp.dk=r.dk;pp.nr=p.nr;}}
   }
-  return Object.values(T).map(t=>({...t,pts:2*t.s+t.u,diff:t.gf-t.ga,games:t.games.sort((a,b)=>a.dk.localeCompare(b.dk))})).sort((a,b)=>b.pts-a.pts||b.diff-a.diff||b.gf-a.gf||a.name.localeCompare(b.name));
+  return Object.values(T).map(t=>({...t,pts:2*t.s+t.u,diff:t.gf-t.ga,games:t.games.sort((a,b)=>(a.spieltag||0)-(b.spieltag||0)||a.dk.localeCompare(b.dk))})).sort((a,b)=>b.pts-a.pts||b.diff-a.diff||b.gf-a.gf||a.name.localeCompare(b.name));
 }
 function teamAgg(t){
   const n=t.sp,players=Object.values(t.P).sort((a,b)=>b.tore-a.tore||b.games-a.games),avg=v=>n?v/n:0;
-  return{n,players,tot:t.gf,w:t.s,d:t.u,l:t.n,gf:avg(t.gf),ga:avg(t.ga),h1:avg(t.h1f),h2:avg(t.gf-t.h1f),h1a:avg(t.h1a),h2a:avg(t.ga-t.h1a),pens:avg(t.pens),
+  const H=t.games.filter(g=>g.h1f!=null),P=t.games.filter(g=>g.pens!=null),av=(L,f)=>L.length?L.reduce((s,g)=>s+f(g),0)/L.length:0;
+  return{n,players,tot:t.gf,w:t.s,d:t.u,l:t.n,gf:avg(t.gf),ga:avg(t.ga),h1:av(H,g=>g.h1f),h2:av(H,g=>g.gf-g.h1f),h1a:av(H,g=>g.h1a),h2a:av(H,g=>g.ga-g.h1a),pens:av(P,g=>g.pens),
     g7:players.reduce((s,p)=>s+p.g7,0),a7:players.reduce((s,p)=>s+p.a7,0)};
 }
 const isOurTeam=name=>matchTeam(name,S.cfg.nameH);
@@ -1742,20 +1754,24 @@ function renderStats(){
     <div class="pending">Eigene App-Daten: ${games.length} Spiel${games.length===1?'':'e'}${(S.archive||[]).length?' im Archiv':''}</div>
     ${(()=>{const g=nextOwnGame();if(!g)return '';const opp=isOurTeam(g.home)?g.away:g.home;return `<div class="nextg">Nächstes Spiel: <b>${esc(gameDate(g.date))}</b> ${isOurTeam(g.home)?'gegen':'bei'} ${logoImg(opp,'sm')}<b>${esc(opp)}</b>${g.field?' · '+esc(g.field):''} <button class="mini" id="st_next">Vorbereiten</button></div>`;})()}</div>
     <div class="row"><button class="tool primary" id="st_get">Daten holen</button></div></section>`;
-  if(!reps.length)h+=`<section class="card"><p>Noch keine Spielberichte in der Statistik. Tippe auf <b>Daten holen</b>: Spielplan auf handball.net öffnen, die Spielberichte als PDF herunterladen und hier gesammelt einlesen. Berichte aus dem Gegner-Scouting und aus der Analyse landen automatisch ebenfalls hier.</p></section>`;
-  else{
-    h+=`<section class="card"><h2 class="ch">Tabelle</h2><div class="pending">Aus den eingelesenen Spielberichten berechnet (2 Punkte pro Sieg). Fehlen Berichte, weicht sie von der offiziellen Tabelle ab. Team antippen für Details.</div>
+  h+=`<div class="tabs stsub" role="tablist">${[['tabelle','Tabelle & Teams'],['plan','Spielplan & Ergebnisse'],['eigen','Eigene Daten']].map(([k,l])=>`<button class="tab${statSub===k?' on':''}" data-ssub="${k}" role="tab" aria-selected="${statSub===k}">${l}</button>`).join('')}</div>`;
+  if(statSub==='plan')h+=scheduleHTML();
+  else if(statSub==='eigen'){h+=games.length?ourTrend(games):'<section class="card"><p class="pending">Noch keine eigenen App-Daten. Spiele kommen über „Spiel abschließen“ im Reiter Analyse ins Archiv.</p></section>';}
+  else if(!reps.length&&!T.length)h+=`<section class="card"><p>Noch keine Spielberichte in der Statistik. Tippe auf <b>Daten holen</b>: Spielplan auf handball.net öffnen, die Spielberichte als PDF herunterladen und hier gesammelt einlesen. Berichte aus dem Gegner-Scouting und aus der Analyse landen automatisch ebenfalls hier.</p></section>`;
+  else if(statSub==='tabelle'){
+    h+=`<section class="card"><h2 class="ch">Tabelle</h2><div class="pending">Aus eingelesenen Spielberichten und Ergebnissen von handball.net berechnet (2 Punkte pro Sieg; das offizielle Endergebnis zählt). Fehlen Berichte, weicht sie von der offiziellen Tabelle ab. Team antippen für Details.</div>
       <div class="tw"><table class="ltable"><thead><tr><th>#</th><th>Team</th><th class="r">Sp</th><th class="r">S</th><th class="r">U</th><th class="r">N</th><th class="r">Tore</th><th class="r">Diff</th><th class="r">Pkt</th><th class="r">Ø Tore</th><th class="r">Ø Gegent.</th></tr></thead><tbody>
       ${T.map((t,i)=>`<tr class="${isOurTeam(t.name)?'ours':''}${statTeam===normT(t.name)?' selrow':''}"><td class="num">${i+1}</td><td><button class="pbtn" data-steam="${esc(normT(t.name))}">${logoImg(t.name,'sm')}${esc(t.name)}</button></td><td class="r num">${t.sp}</td><td class="r num">${t.s}</td><td class="r num">${t.u}</td><td class="r num">${t.n}</td><td class="r num">${t.gf}:${t.ga}</td><td class="r num">${t.diff>0?'+':''}${t.diff}</td><td class="r num"><b>${t.pts}</b></td><td class="r num">${f1(t.gf/t.sp)}</td><td class="r num">${f1(t.ga/t.sp)}</td></tr>`).join('')}
       </tbody></table></div></section>`;
     const t=T.find(x=>normT(x.name)===statTeam);
     if(t)h+=teamDetail(t,maxDay,games);
   }
-  if(games.length)h+=ourTrend(games);
-  if((S.archive||[]).length)h+=`<section class="card"><h2 class="ch">Archiv</h2><div class="tw"><table><thead><tr><th>Datum</th><th>Spiel</th><th class="r">Ergebnis (App)</th><th class="r">Szenen</th><th></th></tr></thead><tbody>
+  if(statSub==='eigen'&&(S.archive||[]).length)h+=`<section class="card"><h2 class="ch">Archiv</h2><div class="tw"><table><thead><tr><th>Datum</th><th>Spiel</th><th class="r">Ergebnis (App)</th><th class="r">Szenen</th><th></th></tr></thead><tbody>
     ${S.archive.map((g,i)=>`<tr><td class="num">${esc(fmtDate(g.datum))}</td><td>${esc(g.nameH)} – ${esc(g.nameG)}</td><td class="r num">${esc(g.score)}</td><td class="r num">${g.events.filter(e=>e.type==='pos').length}</td><td class="r"><button class="mini danger" data-adel="${i}">Löschen</button></td></tr>`).join('')}</tbody></table></div></section>`;
   $('view-statistik').innerHTML=h;
   $('st_get').onclick=()=>fetchSheet();
+  document.querySelectorAll('[data-ssub]').forEach(b=>b.onclick=()=>{statSub=b.dataset.ssub;renderStats();});
+  if($('sch_own'))$('sch_own').onchange=()=>{schedOwn=$('sch_own').checked;renderStats();};
   document.querySelectorAll('[data-steam]').forEach(b=>b.onclick=()=>{statTeam=statTeam===b.dataset.steam?null:b.dataset.steam;renderStats();});
   document.querySelectorAll('[data-adel]').forEach(b=>b.onclick=()=>{const i=+b.dataset.adel,g=S.archive[i];
     openSheet(head('Archiviertes Spiel löschen?')+`<p>${esc(g.nameH)} – ${esc(g.nameG)} (${esc(fmtDate(g.datum))}) wird mit allen Szenen gelöscht.</p><div class="row"><button class="tool danger" id="ad_yes">Löschen</button><button class="tool" data-close>Abbrechen</button></div>`);
@@ -1839,11 +1855,11 @@ function fetchSheet(){
       catch(e){bad.push(f.name);}}
     const G=ids.size;if(!G&&!T){st.innerHTML='<span class="err">In der Datei wurden keine Spiele gefunden. Bitte die Seite von handball.net vollständig sichern (nicht nur als Text).</span>';return;}
     fetchSheet();toast(`${G} Spiele und ${T} Teams übernommen${N?', '+N+' neue Gegner':''}${bad.length?' · '+bad.length+' Datei(en) nicht lesbar':''}`);if(view==='statistik')renderStats();};
-  $('fx_files').onchange=async ev=>{const files=[...ev.target.files];if(!files.length)return;const st=$('fx_status');let add=0,dup=0;const errs=[];
+  $('fx_files').onchange=async ev=>{const files=[...ev.target.files];if(!files.length)return;const st=$('fx_status');let upd=0,add=0,dup=0;const errs=[];
     for(let i=0;i<files.length;i++){st.textContent=`Lese Bericht ${i+1} von ${files.length} …`;
-      try{const R=await readPdf(files[i]);if(!repGoals(R).length&&!R.roster.heim.length)throw new Error('kein Spielbericht erkannt');if(addToLeague(R))add++;else dup++;}catch(e){errs.push(files[i].name+': '+(e.message||e));}}
-    save();st.innerHTML=`<b>${add} neu</b>, ${dup} schon vorhanden${errs.length?`, <span class="err">${errs.length} nicht lesbar</span><br>${esc(errs.join(' · '))}`:''}`;
-    toast(`${add} Spielbericht${add===1?'':'e'} ergänzt`);if(view==='statistik')renderStats();};
+      try{const R=await readPdf(files[i]);if(!repGoals(R).length&&!R.roster.heim.length)throw new Error('kein Spielbericht erkannt');{const r=addToLeague(R);if(r==='upd')upd++;else if(r)add++;else dup++;}}catch(e){errs.push(files[i].name+': '+(e.message||e));}}
+    save();st.innerHTML=`<b>${add} neu</b>${upd?`, <b>${upd} korrigiert</b>`:''}, ${dup} schon vorhanden${errs.length?`, <span class="err">${errs.length} nicht lesbar</span><br>${esc(errs.join(' · '))}`:''}`;
+    toast(`${add} Spielbericht${add===1?'':'e'} ergänzt${upd?', '+upd+' korrigiert':''}`);if(view==='statistik')renderStats();};
 }
 
 /* ---------- Reiter 5: Einstellungen · Team & Kader ---------- */
@@ -2212,6 +2228,40 @@ function prepareOpponent(name){
   if(tt){S.scout={team:tt.name,reports:tt.games.map(g=>({nr:g.nr,datum:g.datum,dk:g.dk,team:g.team,gegner:g.gegner,hg:g.hg,gf:g.gf,ga:g.ga,h1f:g.h1f,h1a:g.h1a,pens:g.pens,to:g.to,roster:g.roster}))};
     const last=tt.games[tt.games.length-1];if(last&&last.roster.length)S.cfg.rosterG=last.roster.map(p=>({nr:p.nr,name:p.name}));}
   save();toast(S.cfg.nameG+' als Gegner übernommen');location.hash='#vorbereitung';
+}
+
+/* ---------- Spielplan & Ergebnisse ---------- */
+let statSub='tabelle',schedOwn=false;
+function codeRound(code){const m=/(\d{2})(\d{2})$/.exec(code||'');return m?{round:+m[1],order:+m[2]}:null;}
+function officialResults(){const o={};for(const g of Object.values(leagueState().games||{}))if(g.finished&&g.hs!=null&&g.as!=null)o[g.code]=g;return o;}
+function scheduleRows(){
+  const L=leagueState(),rows=new Map();
+  for(const g of Object.values(L.games||{}))rows.set(g.code,{code:g.code,round:g.round,order:g.order,date:g.date,home:g.home,away:g.away,hs:g.hs,as:g.as,finished:g.finished,live:g.live,link:g.report,field:g.field,src:'handball.net'});
+  for(const r of Object.values(L.reports||{})){const cr=codeRound(r.nr)||{};const ex=rows.get(r.nr)||{code:r.nr,round:r.spieltag||cr.round,order:cr.order,date:null,home:r.heim.team,away:r.gast.team,finished:true,src:'Spielbericht'};
+    ex.rep=r;if(ex.hs==null){ex.hs=r.heim.gf;ex.as=r.heim.ga;}ex.h1=r.heim.h1f!=null?r.heim.h1f+':'+r.heim.h1a:null;ex.datum=r.datum;
+    if(ex.src==='handball.net'&&(r.heim.gf!==g0(ex.hs)||r.heim.ga!==g0(ex.as)))ex.diff=`Spielbericht: ${r.heim.gf}:${r.heim.ga}`;rows.set(r.nr,ex);}
+  for(const g of guessedGames(Object.values(L.games||{})))if(!rows.has(g.code))rows.set(g.code,{code:g.code,round:g.round,order:g.order,guess:true,link:g.report});
+  return[...rows.values()].sort((a,b)=>(a.round||0)-(b.round||0)||(a.order||0)-(b.order||0));
+}
+const g0=v=>v==null?null:+v;
+function scheduleHTML(){
+  const R=scheduleRows(),L=leagueState();if(!R.length)return `<section class="card"><p>Noch kein Spielplan. Unter <b>Daten holen</b> eine gesicherte handball.net-Seite und die Spielberichte einlesen.</p></section>`;
+  const mine=r=>isOurTeam(r.home)||isOurTeam(r.away),list=schedOwn?R.filter(mine):R;
+  const own=R.filter(r=>mine(r)&&r.finished&&r.hs!=null);let w=0,d=0,l=0;
+  for(const r of own){const us=isOurTeam(r.home)?r.hs:r.as,th=isOurTeam(r.home)?r.as:r.hs;if(us>th)w++;else if(us===th)d++;else l++;}
+  const rounds=[...new Set(list.map(r=>r.round))].sort((a,b)=>a-b),cur=L.rounds&&L.rounds.current,total=L.rounds&&L.rounds.total;
+  let h=`<section class="card"><div class="sheethead"><h2 class="ch">Spielplan & Ergebnisse</h2><label class="check"><input type="checkbox" id="sch_own" ${schedOwn?'checked':''}> nur ${esc(S.cfg.nameH)}</label></div>
+    <div class="pending">${esc(S.cfg.nameH)}: <b>${own.length} Spiele · ${w} S, ${d} U, ${l} N</b> (aus den vorhandenen Daten)${total?` · Spieltag ${cur||'?'} von ${total}`:''}</div>
+    <div class="tw"><table class="hbg sched"><thead><tr><th>ST</th><th>Datum</th><th>Heim</th><th>Gast</th><th class="r">Ergebnis</th><th class="r">HZ</th><th>Spielbericht</th></tr></thead><tbody>`;
+  for(const rd of rounds){h+=`<tr class="rdh${rd===cur?' cur':''}"><td colspan="7">Spieltag ${rd}${rd===cur?' · aktuell':''}</td></tr>`;
+    for(const r of list.filter(x=>x.round===rd)){const res=r.hs!=null&&r.as!=null?`${r.hs}:${r.as}`:'',us=mine(r);
+      let out='';if(us&&res){const a=isOurTeam(r.home)?r.hs:r.as,b=isOurTeam(r.home)?r.as:r.hs;out=a>b?'win':a<b?'loss':'draw';}
+      const rep=r.rep?'<span class="st ok">eingelesen</span>':r.link?`<a class="mini linkbtn2" href="${esc(r.link)}" target="_blank" rel="noopener">Bericht öffnen</a>${r.guess?' <span class="st">vermutet</span>':''}`:`<span class="pending">${r.live?'läuft':r.finished?'kein Bericht':'offen'}</span>`;
+      h+=r.guess&&!r.rep?`<tr class="guess"><td class="num">${rd}</td><td colspan="5" class="pending">Spiel ${esc(String(r.order).padStart(2,'0'))} · Spielnummer ${esc(r.code)} · Paarung noch unbekannt</td><td>${rep}</td></tr>`
+        :`<tr class="${us?'ours':''}"><td class="num">${rd}</td><td class="num">${r.date?esc(gameDate(r.date)):esc(r.datum||'')}</td><td>${logoImg(r.home,'sm')}${esc(r.home||'')}</td><td>${logoImg(r.away,'sm')}${esc(r.away||'')}</td>
+          <td class="r num ${out}">${res}${r.live?' <span class="st diff">läuft</span>':''}${r.diff?` <span class="st diff" title="${esc(r.diff)}">≠</span>`:''}</td><td class="r num">${r.h1?esc(r.h1):''}</td><td>${rep}</td></tr>`;}}
+  h+=`</tbody></table></div><div class="pending">Termine und Ergebnisse stammen aus gesicherten handball.net-Seiten (immer der aktuelle Spieltag) und aus eingelesenen Spielberichten. Den kompletten Spielplan eures Teams liefert vermutlich die gesicherte <b>Teamseite</b> auf handball.net. ≠ markiert ein Spiel, bei dem Spielbericht und handball.net nicht übereinstimmen.</div></section>`;
+  return h;
 }
 
 S=load();
