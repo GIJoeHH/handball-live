@@ -592,7 +592,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='32';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='33';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -2630,27 +2630,35 @@ function sortLeague(arr){
     out.push(...grp);}
   return out;
 }
-let scorerSort='tore',scorerOwn=false,scorerAll=false;
+let scorerSort='tore',scorerOwn=false,scorerAll=false,scorerQ='',scorerTeam='';
 function scorerList(){
   const out=[];for(const t of leagueTable())for(const p of Object.values(t.P||{}))out.push({...p,team:t.name,teamGames:t.sp});
   return out;
 }
 function scorerHTML(){
   let L=scorerList();if(!L.length)return `<section class="card"><p class="pending">Noch keine Torschützen. Spielberichte unter Daten holen einlesen.</p></section>`;
+  const teamsAll=[...new Set(L.map(p=>p.team))].sort((a,b)=>a.localeCompare(b,'de'));
   if(scorerOwn)L=L.filter(p=>isOurTeam(p.team));
+  if(scorerTeam)L=L.filter(p=>p.team===scorerTeam);
+  const qt=ptoks(scorerQ).join(' ');if(qt)L=L.filter(p=>ptoksI(p.name).join(' ').includes(qt)||String(p.nr)===scorerQ.trim());
+  const filtered=!!(qt||scorerTeam),zero=L.filter(p=>!p.tore).length;
   const minG=2,sorters={tore:(a,b)=>b.tore-a.tore||b.tore/b.games-a.tore/a.games,spiele:(a,b)=>b.games-a.games||b.tore-a.tore,schnitt:(a,b)=>b.tore/b.games-a.tore/a.games||b.tore-a.tore};
   let list=L.slice();if(scorerSort==='schnitt')list=list.filter(p=>p.games>=minG);list.sort(sorters[scorerSort]);
-  const shown=scorerAll?list:list.slice(0,25);
+  const shown=scorerAll||filtered?list:list.slice(0,25);
   return `<section class="card"><div class="sheethead"><h2 class="ch">Torjäger</h2><div class="seg">${[['tore','Meiste Tore'],['spiele','Meiste Spiele'],['schnitt','Ø Tore pro Spiel']].map(([k,l])=>`<button class="tab${scorerSort===k?' on':''}" data-ssort="${k}">${l}</button>`).join('')}</div></div>
-    <div class="row"><label class="check"><input type="checkbox" id="sc_own" ${scorerOwn?'checked':''}> nur ${esc(S.cfg.nameH)}</label><span class="pending">${scorerSort==='schnitt'?`Ø nur für Spieler mit mindestens ${minG} Spielen. `:''}Spiele = Einsätze laut Spielbericht.</span></div>
+    <div class="row"><label class="check"><input type="checkbox" id="sc_own" ${scorerOwn?'checked':''}> nur ${esc(S.cfg.nameH)}</label><span class="pending">${scorerSort==='schnitt'?`Ø nur für Spieler mit mindestens ${minG} Spielen. `:''}Spiele = Einsätze laut Spielbericht. Alle Spieler aus den Spielberichten, auch ohne Tor${zero?` (${zero} ohne Tor)`:''}. Namen antippen für Werte früherer Saisons.</span></div>
+    <div class="form"><label>Spieler suchen<input id="sc_q" type="search" value="${esc(scorerQ)}" placeholder="Name oder Rückennummer"></label>
+      <label>Team<select id="sc_team"><option value="">Alle Teams</option>${teamsAll.map(t=>`<option${t===scorerTeam?' selected':''}>${esc(t)}</option>`).join('')}</select></label></div>
     <div class="tw"><table class="ltable"><thead><tr><th>#</th><th>Nr.</th><th>Name</th><th>Team</th><th class="r">Spiele</th><th class="r">Tore</th><th class="r">Ø</th><th class="r">7m</th></tr></thead><tbody>
-    ${shown.map((p,i)=>`<tr class="${isOurTeam(p.team)?'ours':''}"><td class="num">${i+1}</td><td class="num">${p.nr}</td><td>${plink(p.name,p.team)}</td><td>${logoImg(p.team,'sm')}${esc(p.team)}</td><td class="r num${scorerSort==='spiele'?' strong':''}">${p.games}</td><td class="r num${scorerSort==='tore'?' strong':''}">${p.tore}</td><td class="r num${scorerSort==='schnitt'?' strong':''}">${f1(p.tore/p.games)}</td><td class="r num">${p.a7?p.g7+'/'+p.a7:'–'}</td></tr>`).join('')}
-    </tbody></table></div>${list.length>25?`<div class="row"><button class="tool" id="sc_all">${scorerAll?'Nur Top 25':'Alle '+list.length+' anzeigen'}</button></div>`:''}</section>`;
+    ${shown.map((p,i)=>`<tr class="${isOurTeam(p.team)?'ours':''}"><td class="num">${i+1}</td><td class="num">${p.nr}</td><td>${plink(p.name,p.team)}</td><td>${logoImg(p.team,'sm')}${esc(p.team)}</td><td class="r num${scorerSort==='spiele'?' strong':''}">${p.games}</td><td class="r num${scorerSort==='tore'?' strong':''}">${p.tore}</td><td class="r num${scorerSort==='schnitt'?' strong':''}">${p.games?f1(p.tore/p.games):'–'}</td><td class="r num">${p.a7?p.g7+'/'+p.a7:'–'}</td></tr>`).join('')}
+    </tbody></table></div>${!list.length?'<p class="pending">Kein Spieler gefunden.</p>':''}${list.length>25&&!filtered?`<div class="row"><button class="tool" id="sc_all">${scorerAll?'Nur Top 25':'Alle '+list.length+' anzeigen'}</button></div>`:''}</section>`;
 }
 function bindScorer(){
   document.querySelectorAll('[data-ssort]').forEach(b=>b.onclick=()=>{scorerSort=b.dataset.ssort;renderStats();});
   if($('sc_own'))$('sc_own').onchange=()=>{scorerOwn=$('sc_own').checked;renderStats();};
   if($('sc_all'))$('sc_all').onclick=()=>{scorerAll=!scorerAll;renderStats();};
+  if($('sc_q'))$('sc_q').oninput=()=>{clearTimeout(bindScorer.t);bindScorer.t=setTimeout(()=>{scorerQ=$('sc_q').value;const pos=$('sc_q').selectionStart;renderStats();const i=$('sc_q');if(i){i.focus();try{i.setSelectionRange(pos,pos);}catch(e){}}},250);};
+  if($('sc_team'))$('sc_team').onchange=()=>{scorerTeam=$('sc_team').value;renderStats();};
 }
 /* Spielbericht-PDFs im Gerät speichern (IndexedDB), Zusammenfassung aus den gelesenen Daten */
 function pdfDb(){return new Promise(res=>{try{const r=indexedDB.open('hb-live-pdf',1);r.onupgradeneeded=()=>r.result.createObjectStore('p');r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});}
