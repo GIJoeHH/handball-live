@@ -615,7 +615,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='46';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='47';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1430,7 +1430,7 @@ function renderPrep(){
     <label>Kader Gegner<textarea id="g_rG" style="min-height:250px">${esc(rosterText(c.rosterG))}</textarea></label></div>
   </section>
   </div><div class="pcol">
-  <section class="card"><h2 class="ch">${logoImg(c.nameG,'md')}Gegner${['Gegner','Beispielgegner'].includes(c.nameG)?'':': '+esc(c.nameG)}${(g.typ||'liga')!=='liga'?` <span class="st diff">${TYP_LABEL[g.typ]}</span>`:''}${(()=>{const e=oppEntry(c.nameG);return e&&okUrl(e.url)?' '+linkBtn(e.url,'Teamspielplan öffnen','inline'):'';})()}</h2>
+  <section class="card"><h2 class="ch">${logoImg(c.nameG,'md')}Gegner${['Gegner','Beispielgegner'].includes(c.nameG)?'':': '+esc(c.nameG)}${(g.typ||'liga')!=='liga'?` <span class="st diff">${TYP_LABEL[g.typ]}</span>`:''}${(()=>{const e=oppEntry(c.nameG);return e&&okUrl(e.url)?' '+linkBtn(e.url,'Teamspielplan öffnen','inline'):'';})()}${!['Gegner','Beispielgegner'].includes(c.nameG)&&leagueTable().some(x=>matchTeam(x.name,c.nameG))?` <button class="tool primary inline" data-screp="${esc(c.nameG)}">Scouting-Bericht (PDF)</button>`:''}</h2>
     ${oppSelectHTML()}${oppInfoHTML()}${['Gegner','Beispielgegner'].includes(c.nameG)?'':stoppedGamesHTML(c.nameG)}${(()=>{if((g.typ||'liga')!=='liga'||['Gegner','Beispielgegner'].includes(c.nameG))return '';const ng=nextGameVs(c.nameG);if(!ng)return '';const p=progFor(progModel(),ng.home,ng.away);if(!p)return '';
       const us=isOurTeam(ng.home)?'h':'a',win=us==='h'?p.pH:p.pA,lose=us==='h'?p.pA:p.pH;
       return `<div class="find ${win>=.6?'good':lose>=.6?'warn':'info'}"><span><b>Prognose ${esc(ng.home)} – ${esc(ng.away)}: ≈ ${progShort(p)}</b> · Sieg für uns ${pctR(win)}, Unentschieden ${pctR(p.pD)}, Niederlage ${pctR(lose)}. <button class="mini" data-prog="${esc(ng.home+'|'+ng.away)}">Details</button></span></div>`;})()}
