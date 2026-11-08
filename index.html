@@ -613,7 +613,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='43';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='44';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1443,7 +1443,7 @@ function renderPrep(){
     <div class="row"><a class="tool primary linkbtn" href="#erfassen">Weiter zur Erfassung</a></div>
   </section></div>${scoutCard()}</div>`;
   const on=(id,f)=>{const el=$(id);if(el)el.onchange=()=>{f(el.value);save();};};
-  on('g_datum',v=>g.datum=v);on('g_zeit',v=>g.zeit=v);on('g_halle',v=>g.halle=v.trim());bindKlasse();
+  on('g_datum',v=>{g.datum=v;g.auto=false;});on('g_zeit',v=>{g.zeit=v;g.auto=false;});on('g_halle',v=>{g.halle=v.trim();g.auto=false;});bindKlasse();
   if($('g_ownset'))$('g_ownset').onclick=()=>{location.hash='#einstellungen';};
   on('g_half',v=>c.halfLen=Math.min(30,Math.max(10,+v||25)));on('g_tw',v=>g.torwart=v.trim());
   on('g_notiz',v=>g.notiz=v);on('g_plan',v=>g.plan=v);
@@ -2514,19 +2514,21 @@ function selectOpponent(name,typ){
     if(tp.players.length)S.cfg.rosterG=tp.players.map(p=>({nr:p.nr,name:p.name})).sort((a,b)=>a.nr-b.nr);
     if(!g.key.length)for(const p of tp.players.filter(p=>p.tore>=3).slice(0,3))g.key.push({nr:p.nr,note:keyNote(p)});
   }else{S.scout=null;if(!pr)S.cfg.rosterG=[];}
+  if(g.auto&&(g.typ!=='liga'||!matchTeam(prev||'',nm))){g.datum='';g.zeit='';g.halle='';g.auto=false;}
   if(g.typ==='liga')fillGameFromSchedule(nm);
   save();
 }
 function prepareOpponent(name){selectOpponent(name,'liga');toast(S.cfg.nameG+' als Gegner übernommen');location.hash='#vorbereitung';}
 function oppSelectHTML(){
   const c=S.cfg,g=S.game,L=leagueOpponents(),typ=g.typ||'liga',inList=L.some(o=>matchTeam(o.name,c.nameG));
-  const manual=typ!=='liga'||(!inList&&!['Gegner','Beispielgegner',''].includes(c.nameG));
-  return `<div class="oppsel"><label class="fl">Gegner auswählen<select id="g_opp" aria-label="Gegner auswählen">
-      <option value="">– Gegner wählen –</option>${L.map(o=>`<option value="${esc(o.name)}"${!manual&&matchTeam(o.name,c.nameG)?' selected':''}>${esc(o.name)}</option>`).join('')}
-      <option value="__manual"${manual?' selected':''}>Anderer Gegner: Pokal- oder Freundschaftsspiel …</option></select></label>
-    ${manual?`<div class="form"><label>Name des Gegners<input id="g_oppname" value="${esc(['Gegner','Beispielgegner'].includes(c.nameG)?'':c.nameG)}" placeholder="z. B. TSV Altenholz"></label></div>
-      <div class="radio">${['pokal','test','liga'].map(k=>`<label><input type="radio" name="g_typ" value="${k}"${typ===k?' checked':''}> ${TYP_LABEL[k]}</label>`).join('')}</div>
-      <div class="pending">${typ==='liga'?'Zählt als Ligaspiel für die Tabelle.':'Zählt nicht für die Tabelle. Spielbericht und Szenen bleiben in Analyse und Archiv erhalten.'}</div>`:''}
+  const manual=!!S._oppManual||(!inList&&!['Gegner','Beispielgegner',''].includes(c.nameG));
+  return `<div class="oppsel"><div class="label"><span>Spielart</span></div>
+    <div class="radio" role="radiogroup" aria-label="Spielart">${['liga','pokal','test'].map(k=>`<label><input type="radio" name="g_typ" value="${k}"${typ===k?' checked':''}> ${TYP_LABEL[k]}</label>`).join('')}</div>
+    <label class="fl">Gegner auswählen<select id="g_opp" aria-label="Gegner auswählen">
+      <option value="">– Gegner wählen –</option>${L.length?`<optgroup label="Teams aus unserer Liga">${L.map(o=>`<option value="${esc(o.name)}"${!manual&&matchTeam(o.name,c.nameG)?' selected':''}>${esc(o.name)}</option>`).join('')}</optgroup>`:''}
+      <option value="__manual"${manual?' selected':''}>Anderer Gegner (nicht in unserer Liga) …</option></select></label>
+    ${manual?`<div class="form"><label>Name des Gegners<input id="g_oppname" value="${esc(['Gegner','Beispielgegner'].includes(c.nameG)?'':c.nameG)}" placeholder="z. B. TSV Altenholz"></label></div>`:''}
+    <div class="pending">${typ==='liga'?'Zählt als Ligaspiel für die Tabelle. Datum, Anwurf und Halle kommen aus dem Spielplan.':`${TYP_LABEL[typ]}: zählt nicht für die Tabelle. Spielbericht und Szenen bleiben in Analyse und Archiv erhalten.${inList&&!manual?' Kader, Scouting und Schlüsselspieler kommen aus den Ligadaten dieses Gegners, Datum und Halle bitte selbst eintragen.':''}`}</div>
     ${L.length?'':'<div class="pending">Die Liste füllt sich, sobald Spielberichte oder eine handball.net-Seite eingelesen sind (Statistik → Daten holen).</div>'}</div>`;
 }
 function oppInfoHTML(){
@@ -2543,11 +2545,12 @@ function rosterTableHTML(players){
   return `<div class="tw"><table><thead><tr><th>Nr.</th><th>Name</th><th class="r">Spiele</th><th class="r">Tore</th><th class="r">Ø</th><th class="r">7m</th></tr></thead><tbody>${[...players].sort((a,b)=>a.nr-b.nr).map(p=>`<tr><td class="num">${p.nr}</td><td>${plink(p.name)}</td><td class="r num">${p.games}</td><td class="r num">${p.tore||'–'}</td><td class="r num">${p.tore?f1(p.tore/p.games):'–'}</td><td class="r num">${p.a7?p.g7+'/'+p.a7:'–'}</td></tr>`).join('')}</tbody></table></div>`;
 }
 function bindOppSelect(){
-  const sel=$('g_opp');if(!sel)return;
-  sel.onchange=()=>{const v=sel.value;if(v==='__manual'){S.game.typ='pokal';if(leagueOpponents().some(o=>matchTeam(o.name,S.cfg.nameG)))selectOpponent('Gegner','pokal');save();rePrep();const i=$('g_oppname');if(i)i.focus();return;}
-    if(!v)return;selectOpponent(v,'liga');toast(S.cfg.nameG+': Kader, Scouting und Schlüsselspieler übernommen');rePrep();};
-  const nm=$('g_oppname');if(nm)nm.onchange=()=>{const v=nm.value.trim();if(!v)return;selectOpponent(v,S.game.typ==='liga'?'pokal':S.game.typ);rePrep();};
-  document.querySelectorAll('[name=g_typ]').forEach(r=>r.onchange=()=>{S.game.typ=r.value;save();rePrep();});
+  const sel=$('g_opp');if(!sel)return;const typ=()=>S.game.typ||'liga';
+  sel.onchange=()=>{const v=sel.value;
+    if(v==='__manual'){S._oppManual=true;if(leagueOpponents().some(o=>matchTeam(o.name,S.cfg.nameG)))selectOpponent('Gegner',typ());save();rePrep();setTimeout(()=>{const i=$('g_oppname');if(i)i.focus();},30);return;}
+    if(!v)return;S._oppManual=false;selectOpponent(v,typ());toast(S.cfg.nameG+': Kader, Scouting und Schlüsselspieler übernommen');rePrep();};
+  const nm=$('g_oppname');if(nm)nm.onchange=()=>{const v=nm.value.trim();if(!v)return;selectOpponent(v,typ());rePrep();};
+  document.querySelectorAll('[name=g_typ]').forEach(r=>r.onchange=()=>{S.game.typ=r.value;if(r.value==='liga'&&leagueOpponents().some(o=>matchTeam(o.name,S.cfg.nameG)))fillGameFromSchedule(S.cfg.nameG);save();rePrep();});
 }
 function importOwnRosterFromReports(){
   const tp=teamPlayers(S.cfg.nameH);if(!tp||!tp.players.length){toast('Keine Spielberichte mit eurem Team gefunden');return;}
@@ -3021,7 +3024,7 @@ function fillGameFromSchedule(name){
   const g=nextGameVs(name),G=S.game;if(!g)return false;const d=new Date(g.date);
   G.datum=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
   G.zeit=String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
-  G.halle=g.venue||'';G.wir=isOurTeam(g.home)?'heim':'gast';
+  G.halle=g.venue||'';G.wir=isOurTeam(g.home)?'heim':'gast';G.auto=true;
   const kl=(g.comp&&!isCupComp(g.comp)?g.comp.split(' - ').pop():'')||leagueName();if(kl){G.klasse=normKl(kl);rememberKlasse(kl);}
   save();return true;
 }
