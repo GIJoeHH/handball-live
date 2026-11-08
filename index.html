@@ -435,6 +435,8 @@ td.strong{font-weight:700;color:var(--ink)}
   body.print-sheet .find,body.print-sheet tr{break-inside:avoid}
   body.print-sheet{background:#fff!important;padding:0!important}
 }
+
+.check.small{font-size:13px;font-weight:500;margin-left:auto}
 </style>
 
 </head>
@@ -613,7 +615,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='45';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='46';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -662,7 +664,7 @@ function defCauses(){return{
      ...mkC(['Pass zu spät','Fehlpass','Wurf überhastet','Schlechte Wurfauswahl','Laufweg falsch','Schritt- oder Regelfehler','Stürmerfoul'],'-')],
   G:[...mkC(['Durchbruch verhindert','Passweg geschlossen','Hilfe rechtzeitig','Block gestellt','Ball erkämpft'],'+'),
      ...mkC(['Übergabe misslungen','Hilfe zu spät','Rückzug zu spät','Kein Druck auf den Werfer','Kreis nicht gesichert','Falsche Zuordnung','Foul / 7m verursacht'],'-')]};}
-function defCfg(){return{club:'',teamClass:'',start7:{},nameH:'SG HH-Nord II',nameG:'Gegner',halfLen:25,
+function defCfg(){return{club:'',teamClass:'',start7:{},nameH:(window.__HB_DEFAULT_NAME||'Mein Team'),nameG:'Gegner',halfLen:25,
   rosterH:[1,3,4,5,6,7,8,9,11,12,16,17,22,23,24,77].map(nr=>({nr,name:'',pos:'',status:'stamm'})),
   rosterG:[1,6,7,8,11,13,14,18,22,81].map(nr=>({nr,name:''})),
   playsH:mkPlays(['Kreuzen','Einläufer','Sperre/Absetzen','Gegenstoß','1 gegen 1','Positionsangriff']),
@@ -720,7 +722,12 @@ function createTeam(o){
   const I=ensureIndex();I.teams.push({id:n.teamId,label:teamLabel(n)});idxSave(I);
   if(o.switchNow)switchTeam(n.teamId);return n.teamId;
 }
-function deleteTeam(id){if(id===S.teamId)return;localStorage.removeItem(TKEY(id));const I=ensureIndex();I.teams=I.teams.filter(t=>t.id!==id);idxSave(I);}
+const DELK='hb-live-deleted';
+function tombs(){try{return JSON.parse(localStorage.getItem(DELK)||'{}')||{};}catch(e){return{};}}
+function bumpMeta(){try{localStorage.setItem('hb-live-meta-mod',String(Date.now()));}catch(e){}}
+function tombAdd(id){const t=tombs();t[id]=Date.now();try{localStorage.setItem(DELK,JSON.stringify(t));}catch(e){}bumpMeta();}
+function deleteTeam(id){if(id===S.teamId)return;const I=ensureIndex(),e=I.teams.find(t=>t.id===id);if(!(e&&e.local))tombAdd(id);localStorage.removeItem(TKEY(id));I.teams=I.teams.filter(t=>t.id!==id);idxSave(I);}
+const localTeamIds=()=>new Set(ensureIndex().teams.filter(t=>t.local).map(t=>t.id));
 /* Vereinslogos: geräteweit, über den Teamnamen zugeordnet */
 let LOGO={};try{LOGO=JSON.parse(localStorage.getItem(LOGOS)||'{}')||{};}catch(e){LOGO={};}
 function logoSave(){try{localStorage.setItem(LOGOS,JSON.stringify(LOGO));return true;}catch(e){toast('Logo nicht gespeichert: Speicher voll?');return false;}}
@@ -983,11 +990,11 @@ $('undo').onclick=()=>{const e=S.events.pop();if(e&&e.type==='half'){S.half=1;}S
 $('demoClear').onclick=()=>confirmNew();
 $('openOverview').onclick=overview;$('openSettings').onclick=()=>settings('team');
 $('editPlays').onclick=()=>settings('plays');$('openCauses').onclick=()=>causeSheet('offen');$('abortGame').onclick=()=>confirmAbort();
-$('overlay').onclick=ev=>{if(ev.target.id==='overlay')closeSheet();};
+$('overlay').onclick=ev=>{if(ev.target.id==='overlay'&&!$('sheet').dataset.lock)closeSheet();};
 document.addEventListener('keydown',ev=>{if(ev.key==='Escape'){if(!$('overlay').hidden)closeSheet();else if(listOpen){listOpen=false;render();}}});
 
 let tt;function toast(m){const t=$('toast');t.textContent=m;t.hidden=false;clearTimeout(tt);tt=setTimeout(()=>t.hidden=true,1800);}
-function openSheet(html){$('sheet').innerHTML=html;$('overlay').hidden=false;$('sheet').querySelectorAll('[data-close]').forEach(b=>b.onclick=closeSheet);}
+function openSheet(html){$('sheet').innerHTML=html;$('sheet').dataset.lock='';$('overlay').hidden=false;$('sheet').querySelectorAll('[data-close]').forEach(b=>b.onclick=closeSheet);}
 function closeSheet(){$('overlay').hidden=true;render();}
 const head=t=>`<div class="sheethead"><h2>${t}</h2><button class="tool" data-close>Schließen</button></div>`;
 const pct=(a,b)=>b?Math.round(100*a/b)+' %':'–';
@@ -2142,22 +2149,26 @@ function bindLogos(root,after){
 }
 function teamsHTML(){
   const I=ensureIndex();
-  return `<h3>Meine Mannschaften</h3><div class="pending">Jede Mannschaft hat eigene Kader, Spielzüge, Spiele, Statistik und handball.net-Links. Gewechselt wird oben in der Reiterleiste.</div>
-    <div class="rlist">${I.teams.map(t=>`<div class="trow2${t.id===S.teamId?' on':''}">${logoImg(t.label.split(' · ')[0],'md')}<b>${esc(t.label)}</b>${t.id===S.teamId?'<span class="st ok">aktiv</span>':`<span class="row"><button class="tool" data-tsw="${t.id}">Wechseln</button><button class="mini danger" data-tdel="${t.id}">Löschen</button></span>`}</div>`).join('')}</div>
+  return `<h3>Meine Mannschaften</h3><div class="pending">Jede Mannschaft hat eigene Kader, Spielzüge, Spiele, Statistik und handball.net-Links. Gewechselt wird oben in der Reiterleiste. Ohne Haken bei „synchronisieren“ bleibt eine Mannschaft nur auf diesem Gerät und wird mit niemandem geteilt. Gelöschte Mannschaften werden auch auf den anderen Geräten entfernt.</div>
+    <div class="rlist">${I.teams.map(t=>`<div class="trow2${t.id===S.teamId?' on':''}">${logoImg(t.label.split(' · ')[0],'md')}<b>${esc(t.label)}</b>${IS_WEBAPP?`<label class="check small"><input type="checkbox" data-tloc="${t.id}"${t.local?'':' checked'}> synchronisieren</label>`:''}${t.id===S.teamId?'<span class="st ok">aktiv</span>':`<span class="row"><button class="tool" data-tsw="${t.id}">Wechseln</button><button class="mini danger" data-tdel="${t.id}">Löschen</button></span>`}</div>`).join('')}</div>
     <h3>Neue Mannschaft anlegen</h3><div class="form">
       <label>Teamname<input id="nt_name" placeholder="z. B. SG Hamburg-Nord"></label>
       <label>Mannschaft / Altersklasse / Liga<input id="nt_cls" placeholder="z. B. männliche B-Jugend, Landesliga"></label></div>
     <div class="radio"><label class="check"><input type="checkbox" id="nt_plays" checked> Spielzüge, Ursachen und Hinweise übernehmen</label>
-      <label class="check"><input type="checkbox" id="nt_roster"> Kader und Starting 7 übernehmen (gleiche Mannschaft, andere Liga)</label></div>
+      <label class="check"><input type="checkbox" id="nt_roster"> Kader und Starting 7 übernehmen (gleiche Mannschaft, andere Liga)</label>${IS_WEBAPP?'<label class="check"><input type="checkbox" id="nt_local"> Nur auf diesem Gerät, nicht synchronisieren</label>':''}</div>
     <div class="row"><button class="tool primary" id="nt_add">Anlegen und wechseln</button></div>`;
 }
 function bindTeams(){
   document.querySelectorAll('[data-tsw]').forEach(b=>b.onclick=()=>switchTeam(b.dataset.tsw));
+  document.querySelectorAll('[data-tloc]').forEach(cb=>cb.onchange=()=>{const I=ensureIndex(),t=I.teams.find(x=>x.id===cb.dataset.tloc);if(!t)return;if(cb.checked)delete t.local;else t.local=true;idxSave(I);bumpMeta();
+    toast(cb.checked?'Wird synchronisiert':'Bleibt nur auf diesem Gerät');if(cb.checked&&typeof ghSchedule==='function')ghSchedule(1500);});
   document.querySelectorAll('[data-tdel]').forEach(b=>b.onclick=()=>{const id=b.dataset.tdel,t=ensureIndex().teams.find(x=>x.id===id);
-    openSheet(head('Mannschaft löschen?')+`<p><b>${esc(t.label)}</b> wird mit Kader, Spielen, Archiv und Statistik von diesem Gerät gelöscht. Vorher ggf. „Daten sichern“.</p><div class="row"><button class="tool danger" id="td_yes">Löschen</button><button class="tool" data-close>Abbrechen</button></div>`);
-    $('td_yes').onclick=()=>{deleteTeam(id);closeSheet();toast('Mannschaft gelöscht');};});
+    openSheet(head('Mannschaft löschen?')+`<p><b>${esc(t.label)}</b> wird mit Kader, Spielen, Archiv und Statistik gelöscht${t.local?' (nur auf diesem Gerät vorhanden)':', auch auf allen Geräten, die synchronisieren'}. Vorher ggf. „Daten sichern“.</p><div class="row"><button class="tool danger" id="td_yes">Löschen</button><button class="tool" data-close>Abbrechen</button></div>`);
+    $('td_yes').onclick=()=>{deleteTeam(id);closeSheet();toast('Mannschaft gelöscht');if(typeof ghSchedule==='function')ghSchedule(1500);setTimeout(()=>renderSettings(),0);};});
   $('nt_add').onclick=()=>{const name=$('nt_name').value.trim();if(!name){toast('Bitte einen Teamnamen eingeben');$('nt_name').focus();return;}
-    createTeam({name,cls:$('nt_cls').value.trim(),copyPlays:$('nt_plays').checked,copyRoster:$('nt_roster').checked,switchNow:true});setTab='team';renderSettings();};
+    const nid=createTeam({name,cls:$('nt_cls').value.trim(),copyPlays:$('nt_plays').checked,copyRoster:$('nt_roster').checked,switchNow:false});
+    if(nid&&$('nt_local')&&$('nt_local').checked){const I=ensureIndex(),t=I.teams.find(x=>x.id===nid);if(t){t.local=true;idxSave(I);}}
+    if(nid)switchTeam(nid);setTab='team';renderSettings();};
 }
 function leagueOpponents(){
   const names=new Map();
@@ -2254,8 +2265,8 @@ function setSyncMeta(m){try{localStorage.setItem('hb-live-sync',JSON.stringify(O
 const dt=t=>t?new Date(t).toLocaleString('de-DE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'–';
 function teamStates(){save(true);const I=ensureIndex();return I.teams.map(t=>{if(t.id===S.teamId)return{id:t.id,label:t.label,state:S};
   try{const st=JSON.parse(localStorage.getItem(TKEY(t.id)));return st?{id:t.id,label:t.label,state:st}:null;}catch(e){return null;}}).filter(Boolean);}
-function collectAll(){try{pdbRefresh();}catch(e){}const teams=teamStates();return{format:'handball-live-sync',formatVersion:1,appVersion:APP_VERSION,savedAt:Date.now(),device:deviceName(),activeId:S.teamId,teams,logos:LOGO,players:pdb()};}
-function lastChange(){let m=Math.max(S.modAt||0,pdb().modAt||0);for(const t of ensureIndex().teams){if(t.id===S.teamId)continue;try{const st=JSON.parse(localStorage.getItem(TKEY(t.id)));if(st&&st.modAt>m)m=st.modAt;}catch(e){}}return m;}
+function collectAll(){try{pdbRefresh();}catch(e){}const loc=localTeamIds(),teams=teamStates().filter(t=>!loc.has(t.id));return{format:'handball-live-sync',formatVersion:1,appVersion:APP_VERSION,savedAt:Date.now(),device:deviceName(),activeId:loc.has(S.teamId)?(teams[0]||{}).id:S.teamId,teams,logos:LOGO,players:pdb(),deleted:tombs()};}
+function lastChange(){let m=Math.max(S.modAt||0,pdb().modAt||0,+(localStorage.getItem('hb-live-meta-mod')||0));for(const t of ensureIndex().teams){if(t.id===S.teamId)continue;try{const st=JSON.parse(localStorage.getItem(TKEY(t.id)));if(st&&st.modAt>m)m=st.modAt;}catch(e){}}return m;}
 /* IndexedDB für den verbundenen Ordner (nur Chrome/Edge) */
 function fsDb(){return new Promise(res=>{try{const r=indexedDB.open('hb-live-fs',1);r.onupgradeneeded=()=>r.result.createObjectStore('h');r.onsuccess=()=>res(r.result);r.onerror=()=>res(null);}catch(e){res(null);}});}
 async function fsGet(){const d=await fsDb();if(!d)return null;return new Promise(res=>{const q=d.transaction('h').objectStore('h').get('dir');q.onsuccess=()=>res(q.result||null);q.onerror=()=>res(null);});}
@@ -2304,7 +2315,7 @@ function mergeState(loc,rem){
 function onlyDemo(){const I=ensureIndex();return I.teams.length===1&&(S.demo||!posEv().length)&&!(S.archive||[]).length&&!Object.keys((S.league||{}).reports||{}).length;}
 function syncLoadSheet(data){
   if(!data||data.format!=='handball-live-sync'||!Array.isArray(data.teams)){toast('Das ist keine Handball-Live-Datei');return;}
-  const local=new Map(teamStates().map(t=>[t.id,t.state]));alignTeams(data,local);
+  const loc0=localTeamIds(),local=new Map(teamStates().filter(t=>!loc0.has(t.id)).map(t=>[t.id,t.state]));alignTeams(data,local);
   const rows=data.teams.map(t=>{const l=local.get(t.id);if(!l)return{t,kind:'neu'};const m=mergeState(l,t.state);return{t,kind:m.remNewer?'datei':'geraet',lost:m.lostGame,lostSide:m.lostSide};});
   const onlyLocal=[...local.keys()].filter(id=>!data.teams.some(t=>t.id===id));
   const fresh=onlyDemo();
@@ -2324,14 +2335,22 @@ function alignTeams(data,local){const used=new Set([...local.keys()].filter(id=>
     if(hit){if(data.activeId===t.id)data.activeId=hit[0];t.id=hit[0];t.state=Object.assign({},t.state,{teamId:hit[0]});used.add(hit[0]);}}
   return data;}
 function applyImport(data,mode){
-  const local=new Map(teamStates().map(t=>[t.id,t.state])),merged=new Map();if(mode!=='replace')alignTeams(data,local);
+  /* Löschliste zusammenführen: gelöschte Mannschaften kommen nicht zurück */
+  const T=Object.assign({},tombs(),data.deleted||{});try{localStorage.setItem(DELK,JSON.stringify(T));}catch(e){}
+  data=Object.assign({},data,{teams:(data.teams||[]).filter(t=>!T[t.id])});
+  const loc=localTeamIds(),all=teamStates(),locEntries=ensureIndex().teams.filter(t=>loc.has(t.id));
+  const local=new Map(all.filter(t=>!loc.has(t.id)&&!T[t.id]).map(t=>[t.id,t.state])),merged=new Map();
+  for(const t of all)if(T[t.id]&&t.id!==S.teamId&&!loc.has(t.id))localStorage.removeItem(TKEY(t.id));
+  if(mode!=='replace')alignTeams(data,local);
   if(mode==='replace')data.teams.forEach(t=>merged.set(t.id,t.state));
   else{local.forEach((s,id)=>merged.set(id,s));data.teams.forEach(t=>{const l=local.get(t.id);merged.set(t.id,l?mergeState(l,t.state).state:t.state);});}
-  const ids=[...merged.keys()],active=merged.has(S.teamId)?S.teamId:(merged.has(data.activeId)?data.activeId:ids[0]);
+  const keepCur=loc.has(S.teamId)||(T[S.teamId]&&!merged.size);
+  const ids=[...merged.keys()],active=keepCur?S.teamId:merged.has(S.teamId)?S.teamId:(merged.has(data.activeId)?data.activeId:ids[0]);
   for(const id of ids)if(id!==active){const st=merged.get(id);st.teamId=id;localStorage.setItem(TKEY(id),JSON.stringify(st));}
   if(mode==='replace')local.forEach((_,id)=>{if(!merged.has(id))localStorage.removeItem(TKEY(id));});
-  S=migrate(merged.get(active));S.teamId=active;localStorage.removeItem(TKEY(active));
-  idxSave({teams:ids.map(id=>({id,label:teamLabel(merged.get(id))})),active});
+  if(!keepCur&&active){S=migrate(merged.get(active));S.teamId=active;localStorage.removeItem(TKEY(active));}
+  const curLocal=keepCur&&!ids.includes(S.teamId)?[{id:S.teamId,label:teamLabel(S),local:loc.has(S.teamId)||undefined}]:[];
+  idxSave({teams:[...ids.map(id=>({id,label:teamLabel(id===S.teamId?S:merged.get(id))})),...locEntries.filter(t=>!ids.includes(t.id)&&t.id!==S.teamId),...curLocal],active:S.teamId});
   LOGO=mode==='replace'?Object.assign({},data.logos||{}):Object.assign({},data.logos||{},LOGO);logoSave();
   if(data.players)pdbMerge(data.players,mode);
   save(true);setSyncMeta({loadedAt:Date.now(),savedAt:Math.max(syncMeta().savedAt||0,data.savedAt||0),from:data.device});listOpen=false;statTeam=null;render();
@@ -3037,19 +3056,27 @@ function normKl(v){return String(v||'').replace(/&nbsp;|\u00a0/g,' ').replace(/\
 function klasseOptions(){
   const c=S.cfg,set=new Set();const add=v=>{v=normKl(v);if(v)set.add(v);};
   (c.klassen||[]).forEach(add);add(leagueName());add(c.teamClass);
-  schedList().forEach(e=>add(e.comp&&e.comp.split(' - ').pop()));Object.values(leagueState().reports||{}).forEach(r=>add(r.klasse));add(S.game.klasse);
-  return[...set];
+  schedList().forEach(e=>add(e.comp&&e.comp.split(' - ').pop()));Object.values(leagueState().reports||{}).forEach(r=>add(r.klasse));
+  const hid=new Set((c.klasseHidden||[]).map(normKl));const out=[...set].filter(v=>!hid.has(v));const cur=normKl(S.game.klasse);if(cur&&!out.includes(cur))out.unshift(cur);
+  return out;
 }
 function rememberKlasse(v){const c=S.cfg;v=normKl(v);if(!v)return;c.lastKlasse=v;c.klassen=[v,...(c.klassen||[]).map(normKl).filter(x=>x&&x!==v)].slice(0,12);}
 function klasseSelectHTML(){
   const g=S.game;if(g.klasse)g.klasse=normKl(g.klasse);if(!g.klasse&&S.cfg.lastKlasse){g.klasse=normKl(S.cfg.lastKlasse);}
   const opts=klasseOptions(),other=S._klOther;
-  return `<select id="g_klsel" aria-label="Spielklasse">${opts.map(o=>`<option value="${esc(o)}"${!other&&g.klasse===o?' selected':''}>${esc(o)}</option>`).join('')}${opts.length?'':'<option value="">– bitte wählen –</option>'}<option value="__other"${other?' selected':''}>Andere …</option></select>
+  return `<select id="g_klsel" aria-label="Spielklasse">${opts.map(o=>`<option value="${esc(o)}"${!other&&g.klasse===o?' selected':''}>${esc(o)}</option>`).join('')}${opts.length?'':'<option value="">– bitte wählen –</option>'}<option value="__other"${other?' selected':''}>Andere …</option><option value="__edit">Liste bearbeiten …</option></select>
     ${other?`<input id="g_klasse" value="" placeholder="z. B. Hamburg-Pokal mC" aria-label="Spielklasse eingeben">`:''}`;
 }
+function klasseEditSheet(){const c=S.cfg,all=[...new Set([...klasseOptions(),...(c.klasseHidden||[])].map(normKl))].filter(Boolean),hid=new Set((c.klasseHidden||[]).map(normKl));
+  openSheet(head('Spielklassen bearbeiten')+`<p class="pending">Ausgeblendete Einträge erscheinen nicht mehr in der Auswahl, auch wenn sie in Spielplänen oder Spielberichten vorkommen. Die gewählte Spielklasse eines Spiels bleibt erhalten.</p>
+    <div class="rlist">${all.map(v=>`<div class="trow2"><b>${esc(v)}</b>${hid.has(v)?`<span class="st">ausgeblendet</span><button class="mini" data-klshow="${esc(v)}">Wieder anzeigen</button>`:`<button class="mini danger" data-klhide="${esc(v)}">Ausblenden</button>`}</div>`).join('')||'<p class="pending">Keine Einträge.</p>'}</div>
+    <div class="row"><button class="tool primary" data-close>Fertig</button></div>`);
+  const sh=$('sheet');
+  sh.querySelectorAll('[data-klhide]').forEach(x=>x.onclick=()=>{const v=normKl(x.dataset.klhide);c.klasseHidden=[...new Set([...(c.klasseHidden||[]),v])];c.klassen=(c.klassen||[]).filter(k=>normKl(k)!==v);if(normKl(c.lastKlasse)===v)c.lastKlasse='';save();klasseEditSheet();rePrep();});
+  sh.querySelectorAll('[data-klshow]').forEach(x=>x.onclick=()=>{const v=normKl(x.dataset.klshow);c.klasseHidden=(c.klasseHidden||[]).filter(k=>normKl(k)!==v);save();klasseEditSheet();rePrep();});}
 function bindKlasse(){
   const sel=$('g_klsel');if(!sel)return;
-  sel.onchange=()=>{if(sel.value==='__other'){S._klOther=true;rePrep();setTimeout(()=>{const i=$('g_klasse');if(i)i.focus();},50);return;}S._klOther=false;S.game.klasse=sel.value;rememberKlasse(sel.value);save();};
+  sel.onchange=()=>{if(sel.value==='__edit'){sel.value=S.game.klasse||'';klasseEditSheet();return;}if(sel.value==='__other'){S._klOther=true;rePrep();setTimeout(()=>{const i=$('g_klasse');if(i)i.focus();},50);return;}S._klOther=false;S.game.klasse=sel.value;rememberKlasse(sel.value);save();};
   const inp=$('g_klasse');if(inp)inp.onchange=()=>{const v=inp.value.trim();if(!v)return;S._klOther=false;S.game.klasse=v;rememberKlasse(v);save();rePrep();};
 }
 
@@ -3343,12 +3370,39 @@ function ghBind(){
   if($('gh_now'))$('gh_now').onclick=()=>ghSync('manual');
   if($('gh_off'))$('gh_off').onclick=()=>{try{localStorage.removeItem(GH_KEY);}catch(e){}ghState={st:'idle'};toast('Sync auf diesem Gerät getrennt');renderSettings();renderCloud();};}
 
+/* ---------- Einrichtung beim ersten Start ---------- */
+function setupSheet(){
+  const c=S.cfg;
+  openSheet(`<div class="sheethead"><h2>Willkommen bei Handball Live</h2></div>
+    <p>Bevor es losgeht: Für welche Mannschaft nutzt du die App? Alles lässt sich später unter Einstellungen ändern.</p>
+    <div class="form"><label>Verein<input id="su_club" placeholder="z. B. SG Hamburg-Nord"></label>
+      <label>Teamname (wie er in Spielplan und Tabelle erscheinen soll) *<input id="su_name" placeholder="z. B. SG Hamburg-Nord II"></label>
+      <label>Mannschaft / Altersklasse<input id="su_cls" placeholder="z. B. männliche C-Jugend"></label>
+      <label>Halbzeitlänge (Minuten)<input id="su_half" type="number" min="10" max="30" value="25"></label></div>
+    <div class="row"><button class="tool primary" id="su_go">Los geht's</button><span class="pending" id="su_st"></span></div>
+    ${IS_WEBAPP?`<details class="pastebox"><summary><b>Ich nutze die App schon auf einem anderen Gerät oder habe Sync-Daten bekommen</b></summary>
+      <p class="pending">Mit dem GitHub-Zugangsschlüssel und dem Sync-Passwort werden Mannschaften, Spiele und Statistik vom anderen Gerät übernommen. Teamname und Einstellungen kommen dann von dort.</p>
+      <div class="form"><label>GitHub-Zugangsschlüssel<input id="su_tok" type="password" autocomplete="off" placeholder="ghp_…"></label><label>Sync-Passwort<input id="su_pw" type="password" autocomplete="new-password"></label></div>
+      <div class="row"><button class="tool" id="su_sync">Daten übernehmen</button><span class="pending" id="su_sst"></span></div></details>`:''}
+    <p class="pending">Zum Ausprobieren sind Beispieldaten geladen. Mit „Neues Spiel starten“ im gelben Hinweis beginnst du ein echtes Spiel.</p>`);
+  $('sheet').dataset.lock='1';
+  const done=()=>{try{localStorage.setItem('hb-live-setup','1');}catch(e){}};
+  $('su_go').onclick=()=>{const nm=$('su_name').value.trim();if(!nm){$('su_st').innerHTML='<span class="err">Bitte einen Teamnamen eingeben</span>';$('su_name').focus();return;}
+    c.nameH=nm;c.club=$('su_club').value.trim();c.teamClass=$('su_cls').value.trim();c.halfLen=Math.min(30,Math.max(10,+$('su_half').value||25));c.schedName='';
+    done();save();closeSheet();render();toast('Eingerichtet: '+nm);};
+  if($('su_sync'))$('su_sync').onclick=async()=>{const st=$('su_sst');st.textContent='Verbinde …';try{await ghConnect($('su_tok').value,$('su_pw').value);done();closeSheet();render();toast('Daten vom anderen Gerät übernommen');}
+    catch(e){st.innerHTML='<span class="err">'+esc(e.pass?e.message:e.status===401?'Zugangsschlüssel ungültig':e.message||String(e))+'</span>';}};
+}
+
 S=load();
+const SETUP0=localStorage.getItem('hb-live-setup'),FIRST_RUN=SETUP0==='pending'||(!S&&!SETUP0);
 if(!S){S=fresh();loadDemo();}
+try{localStorage.setItem('hb-live-setup',FIRST_RUN?'pending':'1');}catch(e){}
 ensureIndex();
 view=VIEWS.includes(location.hash.slice(1))?location.hash.slice(1):(posEv().length?'erfassen':'vorbereitung');
 window.addEventListener('hashchange',()=>{const v=location.hash.slice(1);if(VIEWS.includes(v)){view=v;listOpen=false;render();window.scrollTo(0,0);}});
 render();
+if(FIRST_RUN)setTimeout(()=>setupSheet(),300);
 setInterval(tick,250);
 })();
 </script>
