@@ -604,7 +604,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='40';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='41';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1402,7 +1402,7 @@ function renderPrep(){
   </section>
   </div><div class="pcol">
   <section class="card"><h2 class="ch">${logoImg(c.nameG,'md')}Gegner${['Gegner','Beispielgegner'].includes(c.nameG)?'':': '+esc(c.nameG)}${(g.typ||'liga')!=='liga'?` <span class="st diff">${TYP_LABEL[g.typ]}</span>`:''}${(()=>{const e=oppEntry(c.nameG);return e&&okUrl(e.url)?' '+linkBtn(e.url,'Teamspielplan öffnen','inline'):'';})()}</h2>
-    ${oppSelectHTML()}${oppInfoHTML()}${(()=>{if((g.typ||'liga')!=='liga'||['Gegner','Beispielgegner'].includes(c.nameG))return '';const ng=nextGameVs(c.nameG);if(!ng)return '';const p=progFor(progModel(),ng.home,ng.away);if(!p)return '';
+    ${oppSelectHTML()}${oppInfoHTML()}${['Gegner','Beispielgegner'].includes(c.nameG)?'':stoppedGamesHTML(c.nameG)}${(()=>{if((g.typ||'liga')!=='liga'||['Gegner','Beispielgegner'].includes(c.nameG))return '';const ng=nextGameVs(c.nameG);if(!ng)return '';const p=progFor(progModel(),ng.home,ng.away);if(!p)return '';
       const us=isOurTeam(ng.home)?'h':'a',win=us==='h'?p.pH:p.pA,lose=us==='h'?p.pA:p.pH;
       return `<div class="find ${win>=.6?'good':lose>=.6?'warn':'info'}"><span><b>Prognose ${esc(ng.home)} – ${esc(ng.away)}: ≈ ${progShort(p)}</b> · Sieg für uns ${pctR(win)}, Unentschieden ${pctR(p.pD)}, Niederlage ${pctR(lose)}. <button class="mini" data-prog="${esc(ng.home+'|'+ng.away)}">Details</button></span></div>`;})()}
     <div class="label"><span>Abwehrsystem</span></div>
@@ -1515,6 +1515,15 @@ function analyze(){
   if(top&&top[1]>=4&&top[1]/B.g>=.3){const k=S.game.key.find(x=>x.nr===+top[0]);
     add(def,'warn',`${pname('G',+top[0])} nicht in den Griff bekommen`,`${top[1]} von ${B.g} Gegentoren (${pct(top[1],B.g)}).${k?' In der Vorbereitung als Schlüsselspieler markiert'+(k.note?': '+k.note:'')+'.':''}`);}
   for(const k of S.game.key.filter(k=>k.nr!=null&&(!top||k.nr!==+top[0]))){const g=cnt[k.nr]||0;if(g<=2&&B.g>=8)add(def,'good',`Schlüsselspieler ${pname('G',k.nr)} kontrolliert`,`Nur ${g} Tor${g===1?'':'e'}.`);}
+  {/* Gegenspieler mit ihrem Saisonschnitt aus den Spielberichten vergleichen */
+    const R0=S.report,oppSide=ourTeam()==='heim'?'gast':'heim',sv=seasonPlayersOf(S.cfg.nameG,R0&&R0.meta&&R0.meta.nr);
+    let got=null,present=null;
+    if(R0&&R0.roster&&R0.roster[oppSide]&&R0.roster[oppSide].length){got=new Map(R0.roster[oppSide].map(p=>[pkey(p.name||'#'+p.nr),p.tore||0]));present=new Set(got.keys());}
+    else if(posEv().length>=30&&B.g>=10){got=new Map();present=new Set();for(const p of S.cfg.rosterG){const k=pkey(p.name||'#'+p.nr);present.add(k);got.set(k,cnt[p.nr]||0);}}
+    if(sv&&got){const keyNr=new Set(S.game.key.map(k=>k.nr));const hits=[];
+      for(const p of sv.players){const k=pkey(p.name||'');if(!present.has(k))continue;const g=got.get(k)||0;if(!isStopped(p.avg,g))continue;
+        const r=S.cfg.rosterG.find(x=>pkey(x.name||'')===k);if(r&&def.some(f=>f.title.includes(pname('G',r.nr))))continue;hits.push({p,g});}
+      for(const {p,g} of hits.sort((a,b)=>(b.p.avg-b.g)-(a.p.avg-a.g)).slice(0,3))add(def,'good',`${p.name} im Griff`,`${g} Tor${g===1?'':'e'}, sonst Ø ${f1(p.avg)} in ${p.g0} Spielen dieser Saison${R0?'':' (laut Erfassung)'}.`);}}
   const cp={};for(const e of PG.filter(e=>e.result==='tor'&&e.pos&&e.pos!=='7m'))cp[e.pos]=(cp[e.pos]||0)+1;
   const tp=Object.entries(cp).sort((a,b)=>b[1]-a[1])[0],sumc=Object.values(cp).reduce((s,v)=>s+v,0);
   if(tp&&tp[1]>=4&&tp[1]/sumc>=.35)add(def,'warn',`Gegentore aus ${tp[0]}`,`${tp[1]} von ${sumc} Feldtoren des Gegners fielen aus ${tp[0]}.`);
@@ -2705,6 +2714,21 @@ async function reportSummary(code){
   if(pdf)$('rs_pdf').onclick=()=>{const u=URL.createObjectURL(pdf),a=document.createElement('a');a.href=u;a.target='_blank';a.rel='noopener';document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(u);},60000);};
 }
 
+/* Gestoppt = Saisonschnitt ab 3 Toren und höchstens die Hälfte davon, mindestens 2,5 Tore weniger */
+const isStopped=(avg,t)=>avg>=3&&t<=avg*0.5&&avg-t>=2.5;
+/* Saisonwerte eines Teams je Spieler, optional ohne ein bestimmtes Spiel (Spielnummer) */
+function seasonPlayersOf(team,exclNr){let t=null;try{t=leagueTable().find(x=>matchTeam(x.name,team));}catch(e){}if(!t)return null;
+  const ex=exclNr?t.games.find(g=>g.nr===exclNr):null,out=[];
+  for(const p of Object.values(t.P||{})){const q=ex&&(ex.roster||[]).find(r=>pkey(r.name||'')===pkey(p.name||''));const g0=p.games-(q?1:0),t0=p.tore-(q?q.tore:0);if(g0<2)continue;out.push({name:p.name,nr:p.nr,g0,avg:t0/g0});}
+  return{team:t,players:out};}
+/* Vorbereitung: in welchen Spielen wurden die Torjäger des Gegners gestoppt? */
+function stoppedGamesHTML(team){const sp=seasonPlayersOf(team);if(!sp)return '';const t=sp.team,top=sp.players.filter(p=>p.avg>=4&&p.g0>=3).sort((a,b)=>b.avg-a.avg).slice(0,3);if(!top.length)return '';
+  const items=top.map(p=>{const G=t.games.filter(g=>(g.roster||[]).some(r=>pkey(r.name||'')===pkey(p.name||''))).map(g=>({g,tore:(g.roster.find(r=>pkey(r.name||'')===pkey(p.name||''))||{}).tore||0}));
+    const st=G.filter(x=>isStopped(p.avg,x.tore));const mn=G.length?Math.min(...G.map(x=>x.tore)):null;
+    return st.length?`<b>${esc(p.name)}</b> (Ø ${f1(p.avg)}): ${st.map(x=>`${x.tore} Tor${x.tore===1?'':'e'} ${x.g.hg==='heim'?'gegen':'bei'} ${esc(x.g.gegner)}${x.g.datum?' ('+esc(x.g.datum)+')':''}`).join(', ')}`
+      :`<b>${esc(p.name)}</b> (Ø ${f1(p.avg)}): nie gestoppt, mindestens ${mn} Tore in jedem Spiel`;});
+  return `<div class="find info"><span><b>Wann wurden die Torjäger gestoppt?</b> ${items.join(' · ')}. ${top.some(p=>true)?'Diese Spiele lohnen sich anzuschauen: Wie hat die Abwehr dort gespielt?':''}</span></div>`;}
+
 /* ---------- Spielbericht-Analyse: statistische Gründe für den Ausgang ---------- */
 function repAnalysis(r){
   const H=r.heim,G=r.gast,ev=(r.ev||[]).slice().sort((a,b)=>a.t-b.t),T={heim:H.team,gast:G.team},o=s=>s==='heim'?'gast':'heim';
@@ -2762,9 +2786,12 @@ function repAnalysis(r){
     for(const p of Object.values(t.P||{})){const g0=p.games-(inGame.has(pkey(p.name||''))?1:0),t0=p.tore-(ro.find(q=>pkey(q.name||'')===pkey(p.name||''))||{tore:0}).tore;
       if(g0<2)continue;const avg=t0/g0,share=t0/Math.max(1,others.reduce((s2,g)=>s2+g.gf,0));
       if(!inGame.has(pkey(p.name||''))&&(avg>=4||share>=.15))add(4+avg/1.5,o(s),`Schlüsselspieler fehlte: ${T[s]}`,`${p.name} (sonst Ø ${f1(avg)} Tore in ${g0} Spielen) stand nicht im Kader.`);}
-    for(const q of ro){const p=Object.values(t.P||{}).find(x=>pkey(x.name||'')===pkey(q.name||''));if(!p)continue;const g0=p.games-1,t0=p.tore-q.tore;if(g0<2)continue;const avg=t0/g0;
+    const played=[];
+    for(const q of ro){const p=Object.values(t.P||{}).find(x=>pkey(x.name||'')===pkey(q.name||''));if(!p)continue;const g0=p.games-1,t0=p.tore-q.tore;if(g0<2)continue;const avg=t0/g0;played.push({q,avg});
       if(q.tore>=avg+4&&q.tore>=6)add(3+(q.tore-avg)/2,s,`${q.name}: Sahnetag`,`${q.tore} Tore, sonst Ø ${f1(avg)}.`);
-      else if(avg>=5&&q.tore<=avg-4)add(3+(avg-q.tore)/2,o(s),`${q.name} kaltgestellt`,`Nur ${q.tore} Tor${q.tore===1?'':'e'}, sonst Ø ${f1(avg)}.`);}
+      else if(isStopped(avg,q.tore))add(3+(avg-q.tore)/2,o(s),`${q.name} kaltgestellt`,`Nur ${q.tore} Tor${q.tore===1?'':'e'}, sonst Ø ${f1(avg)}. Hinweis auf gute Abwehrarbeit von ${T[o(s)]}.`);}
+    {const L3=played.sort((a,b)=>b.avg-a.avg).slice(0,3),sa=L3.reduce((x,y)=>x+y.avg,0),st=L3.reduce((x,y)=>x+y.q.tore,0);
+      if(L3.length>=2&&sa>=8&&st<=sa*0.6)add(4+(sa-st)/3,o(s),`Top-Werfer von ${T[s]} gestoppt`,`Die ${L3.length} besten Werfer (${L3.map(x=>x.q.name.split(' ')[0]+' '+x.q.name.split(' ').slice(-1)[0]).join(', ')}) zusammen ${st} statt Ø ${f1(sa)} Tore. Das spricht für die Abwehr von ${T[o(s)]} insgesamt.`);}
     const avgF=others.reduce((s2,g)=>s2+g.gf,0)/n,avgA=others.reduce((s2,g)=>s2+g.ga,0)/n;
     if(n>=2&&gf-avgF>=6)add(2+(gf-avgF)/3,s,`${T[s]}: Angriff über Schnitt`,`${gf} Tore, sonst Ø ${f1(avgF)}.`);
     if(n>=2&&avgF-gf>=6)add(2+(avgF-gf)/3,o(s),`${T[s]}: Angriff unter Schnitt`,`Nur ${gf} Tore, sonst Ø ${f1(avgF)}.`);
