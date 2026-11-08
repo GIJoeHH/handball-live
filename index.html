@@ -446,7 +446,7 @@ td.strong{font-weight:700;color:var(--ink)}
 
 /* Vollbild für die Erfassung: Kopfzeilen weg, alles enger, damit Spielzug bis Ergebnis ohne Scrollen passt */
 html.capfull body:has(#view-erfassen:not([hidden])) .nav,html.capfull body:has(#view-erfassen:not([hidden])) .demo-note,html.capfull body:has(#view-erfassen:not([hidden])) .foot{display:none!important}
-html.capfull.standalone body{padding-top:6px}
+html.capfull.standalone body{padding-top:max(env(safe-area-inset-top,0px),24px)}
 html.capfull #view-erfassen{gap:6px}
 html.capfull #view-erfassen .board{padding:4px 8px;gap:8px}
 html.capfull #view-erfassen .score .goals{font-size:30px}
@@ -534,6 +534,13 @@ html.capfull #view-erfassen .pcard .players.small .btn{min-height:32px}
 #playerHint:empty{display:none}
 @media (max-height:800px){html.capfull #view-erfassen .pcard .players .btn{min-height:35px}html.capfull #view-erfassen .pcard .players{gap:3px}html.capfull #view-erfassen .pcard .players.small .btn{min-height:26px}
   html.capfull #view-erfassen .pcard .label{margin:0 0 3px}html.capfull #view-erfassen .pcard{padding:6px 8px}}
+
+/* Anzeigetafel: Logos nie abschneiden, nur den Namen kürzen; Abstand zur Spieluhr */
+.score .team{display:inline-flex;align-items:center;gap:6px;max-width:none;overflow:visible}
+.score .team .tn{max-width:9em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.score .team .logo{flex:0 0 auto}
+.score{margin-right:6px}
+html.capfull #view-erfassen .score .team .tn{max-width:7.5em}
 </style>
 
 </head>
@@ -713,7 +720,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='53';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='54';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -964,7 +971,7 @@ document.addEventListener('visibilitychange',()=>keepAwake());
 function renderLive(){
   const c=ctx(),p=S.pending,cfg=S.cfg,sc=score();
   $('demoNote').hidden=!S.demo;
-  $('nameH').innerHTML=logoImg(cfg.nameH,'sm')+esc(cfg.nameH);$('nameG').innerHTML=esc(cfg.nameG)+logoImg(cfg.nameG,'sm');
+  $('nameH').innerHTML=logoImg(cfg.nameH,'sm')+`<span class="tn">${esc(cfg.nameH)}</span>`;$('nameG').innerHTML=`<span class="tn">${esc(cfg.nameG)}</span>`+logoImg(cfg.nameG,'sm');
   $('goalsH').textContent=sc.h;$('goalsG').textContent=sc.g;
   const H=hints(),open=H.filter(h=>!isAcked(h)),top=open[0];
   let hb='';
