@@ -510,6 +510,30 @@ html.capfull #view-erfassen .rcol .resgrid{gap:6px}
 
 .pcard .players.small{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
 .pcard .players.small .btn{min-height:34px}.pcard .players.small .btn b{font-size:15px}
+
+/* Layout: 1–3 | 4 Werfer/Assist (2 Spalten, volle Höhe) | 5 Wurfziel über 6 Ergebnis */
+.main{grid-template-columns:minmax(0,1fr) 124px minmax(0,1fr);align-items:stretch}
+.main>.mcol:not(.pcol){align-self:start}
+.pcol{align-self:stretch}.pcol .pcard{height:100%;box-sizing:border-box}
+.pcard .players,html.capfull #view-erfassen .pcard .players{grid-template-columns:repeat(2,minmax(0,1fr))}
+.pcard .players.small{grid-template-columns:repeat(2,minmax(0,1fr))}
+.rcol .gcard #goalPick{max-width:360px}
+@media (max-width:1000px){.main{grid-template-columns:1fr 1fr}.pcol{grid-column:1 / -1}.pcol .pcard{height:auto}.pcard .players,.pcard .players.small{grid-template-columns:repeat(auto-fill,minmax(52px,1fr))}.rcol{grid-column:1 / -1}}
+@media (max-width:640px){.main{grid-template-columns:1fr}}
+html.capfull #view-erfassen #goalPick{height:24vh}
+@media (min-height:800px){html.capfull #view-erfassen #goalPick{height:26vh}}
+html.capfull #view-erfassen .pcard .players.small .btn{min-height:32px}
+@media (min-width:1001px){html.capfull #view-erfassen .rcol .resgrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+  html.capfull #view-erfassen .rcol .keeprow{flex-direction:row;flex-wrap:wrap}
+  html.capfull #view-erfassen .rcol .keeprow .keep{flex:1 1 45%;padding:0 8px;font-size:14px}
+  html.capfull #view-erfassen .rcol .keeprow .keep.fix{flex-basis:100%}}
+@media (max-height:800px){html.capfull #view-erfassen #goalPick{height:20vh}
+  html.capfull #view-erfassen .pcard .players .btn{min-height:38px}html.capfull #view-erfassen .pcard .players{gap:4px}
+  html.capfull #view-erfassen .pcard .players.small .btn{min-height:28px}html.capfull #view-erfassen .pcard .players.small .btn b{font-size:13px}
+  html.capfull #view-erfassen .rcol .resgrid .btn{min-height:40px}html.capfull #view-erfassen .undo{min-height:38px}html.capfull #view-erfassen .keep{min-height:34px}}
+#playerHint:empty{display:none}
+@media (max-height:800px){html.capfull #view-erfassen .pcard .players .btn{min-height:35px}html.capfull #view-erfassen .pcard .players{gap:3px}html.capfull #view-erfassen .pcard .players.small .btn{min-height:26px}
+  html.capfull #view-erfassen .pcard .label{margin:0 0 3px}html.capfull #view-erfassen .pcard{padding:6px 8px}}
 </style>
 
 </head>
@@ -598,13 +622,11 @@ window.hbHardReload=async function(){
       <div class="grid players small" id="assists" hidden></div>
     </section>
   </div>
-  <div class="mcol">
-    <section class="card">
+  <div class="mcol rcol">
+    <section class="card gcard">
       <div class="label"><span><span class="stepn">5</span>Wurfziel · optional · Sicht des Werfers</span></div>
       <svg class="goal" id="goalPick" viewBox="0 0 300 206" role="group" aria-label="Wurfziel antippen"></svg>
     </section>
-  </div>
-  <div class="mcol rcol">
   <section class="card resultbar">
     <div class="label"><span><span class="stepn">6</span>Ergebnis · schließt den Ballbesitz ab</span></div>
     <div class="pending" id="pending"></div>
@@ -691,7 +713,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='52';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='53';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -997,7 +1019,7 @@ function renderLive(){
   $('btn7m').onclick=()=>{if(S.pending.pos==='7m'){S.pending.pos=undefined;}else{S.pending.pos='7m';S.pending.xy=undefined;S.pending.quality='frei';}save();render();};
   $('quality').innerHTML=['frei','bedrängt'].map(q=>`<button class="btn${(p.quality||'bedrängt')===q?' sel':''}" data-q="${q}">${q==='frei'?'Frei':'Bedrängt'}</button>`).join('');
   document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{S.pending.quality=b.dataset.q;save();render();});
-  const gr=gridRoster(c.side);
+  const gr=gridRoster(c.side).slice().sort((x,y)=>x.p.nr-y.p.nr);
   const isAtt=c.side==='H';
   $('playerLabel').textContent=isAtt?'Werfer / Assist':'Werfer Gegner';
   $('playerHint').innerHTML=isAtt?'<span class="dot shot"></span>1. Tipp Werfer <span class="dot ast"></span>2. Tipp Assist':'';
@@ -1013,7 +1035,7 @@ function renderLive(){
   const isDef=c.side==='G';$('defLabel').hidden=!isDef;$('defenders').hidden=!isDef;
   if(isDef){
     $('defText').textContent='Unsere Abwehr · optional';$('defText').title='Beteiligter Abwehrspieler: Block, Ballgewinn oder Parade';
-    $('defenders').innerHTML=gridRoster('H').map(({p:pl,sn,cls})=>`<button class="btn num${cls}${p.def===pl.nr?' sel':''}" data-df="${pl.nr}" title="${esc(pl.name)}"><b>${pl.nr}</b>${sn?`<small>${esc(sn)}</small>`:''}</button>`).join('');
+    $('defenders').innerHTML=gridRoster('H').slice().sort((x,y)=>x.p.nr-y.p.nr).map(({p:pl,sn,cls})=>`<button class="btn num${cls}${p.def===pl.nr?' sel':''}" data-df="${pl.nr}" title="${esc(pl.name)}"><b>${pl.nr}</b>${sn?`<small>${esc(sn)}</small>`:''}</button>`).join('');
     document.querySelectorAll('[data-df]').forEach(b=>b.onclick=()=>{const n=+b.dataset.df;S.pending.def=S.pending.def===n?undefined:n;save();render();});}
   const L=S.events.slice(-60).reverse();
   $('logCount').textContent=posEv().filter(e=>!e.keep).length+' Ballbesitze';
