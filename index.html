@@ -613,7 +613,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='44';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='45';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -2176,9 +2176,13 @@ function parseTablePaste(txt){
     if(!out.some(x=>normT(x)===normT(cand)))out.push(cand);}
   return out;
 }
+function logoDiagHTML(){const V=Object.values(LOGO),remote=V.filter(u=>/^https?:/.test(u)),emb=V.length-remote.length;
+  return `<h3>Logos</h3><div class="pending">${V.length?`${V.length} Logos auf diesem Gerät: ${remote.length} als Link zu handball.net${emb?`, ${emb} als eigenes Bild`:''}.`:'Auf diesem Gerät sind noch keine Logos gespeichert.'}
+    ${remote.length?` <span id="lg_test">Prüfe den Bildserver …</span><img hidden alt="" src="${esc(remote[0])}" onload="var s=document.getElementById('lg_test');if(s)s.textContent='Bildserver erreichbar, Logos werden angezeigt.'" onerror="var s=document.getElementById('lg_test');if(s){s.textContent='Bildserver von handball.net gerade nicht erreichbar (kein Internet, Inhaltsblocker oder Server). Logos als Link erscheinen dann nicht, eigene Bilder schon.';s.className='err';}">`:''}
+    ${V.length?'':' Logos kommen beim Einlesen einer handball.net-Seite (Statistik → Daten holen) oder über den Sync von einem anderen Gerät. Unter „Gegner der Liga“ kannst du auch eigene Bilder hinterlegen.'}</div>`;}
 function oppHTML(){
   const L=leagueOpponents();
-  return `<h3>Gegner der Liga</h3><div class="pending">Gegner werden automatisch aus den eingelesenen Spielberichten erkannt. Zusätzlich kannst du die Tabelle von handball.net markieren, kopieren und hier einfügen. Zu jedem Gegner lassen sich der Link zum Teamspielplan und ein Logo hinterlegen.</div>
+  return logoDiagHTML()+`<h3>Gegner der Liga</h3><div class="pending">Gegner werden automatisch aus den eingelesenen Spielberichten erkannt. Zusätzlich kannst du die Tabelle von handball.net markieren, kopieren und hier einfügen. Zu jedem Gegner lassen sich der Link zum Teamspielplan und ein Logo hinterlegen.</div>
     <details class="pastebox"><summary><b>Tabelle von handball.net einfügen</b></summary>
       <textarea id="op_paste" placeholder="Auf handball.net die Tabelle markieren, kopieren und hier einfügen"></textarea>
       <div class="row"><button class="tool" id="op_parse">Gegner erkennen</button></div><div id="op_prev"></div></details>
@@ -2998,7 +3002,7 @@ function scoutReportSheet(name){
     ${pg&&pg.p?`<div class="find info"><span><b>Nächstes Spiel ${esc(pg.ng.home)} – ${esc(pg.ng.away)}:</b> Prognose ≈ ${progShort(pg.p)} · Sieg Heim ${pctR(pg.p.pH)}, Gast ${pctR(pg.p.pA)}.</span></div>`:''}
     ${R.ours?'':`<div class="cols2"><div><h3>Unsere größte Chance</h3>${R.ch.length?R.ch.slice(0,3).map((x,i)=>`<div class="find good"><span>${i===0?'<b>':''}${esc(x.text)}${i===0?'</b>':''}</span></div>`).join(''):'<p class="pending">Noch zu wenige Daten.</p>'}</div>
       <div><h3>Größte Herausforderung</h3>${R.hd.length?R.hd.slice(0,3).map((x,i)=>`<div class="find warn"><span>${i===0?'<b>':''}${esc(x.text)}${i===0?'</b>':''}</span></div>`).join(''):'<p class="pending">Noch zu wenige Daten.</p>'}</div></div>`}
-    <h3>Key Points: Wenn sie gewinnen und wenn sie verlieren</h3>
+    <h3>Key Points: Wann gewinnen sie, wann nicht?</h3>
     ${R.W.length&&R.Lo.length?(R.key.length?R.key.slice(0,6).map(x=>`<div class="find info"><span>${esc(x.text)}</span></div>`).join(''):'<p class="pending">Zwischen Siegen und Niederlagen gibt es bisher keine deutlichen Unterschiede.</p>'):`<p class="pending">${!R.Lo.length?'Bisher keine Niederlage':'Bisher kein Sieg'}, ein Vergleich ist noch nicht möglich.</p>`}
     <div class="tw"><table><thead><tr><th></th><th class="r">in Siegen (${R.W.length})</th><th class="r">in Niederlagen (${R.Lo.length})</th></tr></thead><tbody>${R.cmp.filter(c=>c.w!=null||c.l!=null).map(c=>`<tr><td>${esc(c.lab)}</td><td class="r num">${c.fmtv(c.w)}</td><td class="r num">${c.fmtv(c.l)}</td></tr>`).join('')}</tbody></table></div>
     ${A.players.some(p=>p.name)?'<h3>Torschützen</h3>':''}<div class="tw"${A.players.some(p=>p.name)?'':' hidden'}><table><thead><tr><th>Nr.</th><th>Name</th><th class="r">Sp</th><th class="r">Tore</th><th class="r">Ø</th><th class="r">7m</th></tr></thead><tbody>${A.players.filter(p=>p.name).slice(0,10).map(p=>`<tr><td class="num">${p.nr}</td><td>${esc(p.name)}</td><td class="r num">${p.games}</td><td class="r num">${p.tore}</td><td class="r num">${f1(p.tore/p.games)}</td><td class="r num">${p.a7?p.g7+'/'+p.a7:'–'}</td></tr>`).join('')}</tbody></table></div>
