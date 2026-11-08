@@ -426,6 +426,15 @@ td.strong{font-weight:700;color:var(--ink)}
 .prog:hover{color:var(--att);border-color:var(--att)}
 .probbar{display:flex;height:14px;border-radius:999px;overflow:hidden;background:var(--surface-2)}
 .probbar .ph{background:var(--att)}.probbar .pd{background:var(--line)}.probbar .pa{background:var(--def)}
+
+@media print{
+  body.print-sheet .app,body.print-sheet .foot,body.print-sheet .toast,body.print-sheet .noprint{display:none!important}
+  body.print-sheet .overlay{position:static!important;background:none!important;padding:0!important;display:block!important}
+  body.print-sheet .sheet{max-height:none!important;overflow:visible!important;border:0!important;width:100%!important;box-shadow:none!important}
+  body.print-sheet .sheethead [data-close]{display:none!important}
+  body.print-sheet .find,body.print-sheet tr{break-inside:avoid}
+  body.print-sheet{background:#fff!important;padding:0!important}
+}
 </style>
 
 </head>
@@ -604,7 +613,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='42';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='43';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1958,7 +1967,7 @@ function renderStats(){
 function teamDetail(t,maxDay,games){
   const A=teamAgg(t),I=scoutInsights(A),miss=missingDays(t,maxDay),ours=isOurTeam(t.name);
   const oe=oppEntry(t.name);
-  let h=`<section class="card"><div class="sheethead"><h2 class="ch">${logoImg(t.name,'md')}${esc(t.name)}</h2><span class="row">${linkBtn(ours?linksOf().team:(oe&&oe.url),'Teamspielplan öffnen')}${ours?'':'<button class="tool" id="st_prep">Als nächsten Gegner vorbereiten</button>'}</span></div>
+  let h=`<section class="card"><div class="sheethead"><h2 class="ch">${logoImg(t.name,'md')}${esc(t.name)}</h2><span class="row"><button class="tool primary" data-screp="${esc(t.name)}">Scouting-Bericht</button>${linkBtn(ours?linksOf().team:(oe&&oe.url),'Teamspielplan öffnen')}${ours?'':'<button class="tool" id="st_prep">Als nächsten Gegner vorbereiten</button>'}</span></div>
     <div class="facts"><div class="fact"><small>Bilanz</small><b>${t.s} S, ${t.u} U, ${t.n} N · ${ptsStr(t)} Punkte</b></div>
       <div class="fact"><small>Ø Tore : Gegentore · Ø Diff</small><b class="num">${f1(A.gf)} : ${f1(A.ga)} · ${A.gf-A.ga>0?'+':''}${f1(A.gf-A.ga)}</b></div>
       <div class="fact"><small>Ø Tore 1. / 2. HZ</small><b class="num">${f1(A.h1)} / ${f1(A.h2)}</b></div>
@@ -2265,15 +2274,23 @@ async function syncSave(){
   setSyncMeta({savedAt:d.savedAt,how:'Download'});toast('Datei heruntergeladen');renderCloud();if(view==='einstellungen')renderSettings();
 }
 function renderCloud(){const b=$('cloudBtn');if(!b)return;if(!IS_WEBAPP){b.hidden=true;return;}b.hidden=false;
+  if(typeof ghOn==='function'&&ghOn()){const c=ghCfg(),dirty=lastChange()>(c.pushedAt||0)+1500,st=ghState.st;
+    b.className='cloud'+(st==='err'?' dirty':dirty||st==='busy'?'':' ok');b.textContent=st==='err'?'☁︎ Sync-Fehler':st==='busy'?'☁︎ gleicht ab …':dirty?'☁︎ wird gesendet':'☁︎ synchron';
+    b.title=st==='err'?ghState.msg:'Automatischer Sync über GitHub · zuletzt gesendet '+dt(c.pushedAt);b.onclick=()=>ghSync('manual');return;}
   const m=syncMeta(),dirty=lastChange()>(m.savedAt||0)+1500;b.className='cloud'+(dirty?' dirty':' ok');
   b.textContent=dirty?'☁︎ nicht gesichert':'☁︎ gesichert';b.title=dirty?'Änderungen seit '+dt(m.savedAt)+' noch nicht in iCloud gesichert':'Zuletzt gesichert '+dt(m.savedAt);
   b.onclick=()=>syncSave();}
 /* Zusammenführen */
 const unionBy=(a,b,k)=>{const m=new Map();(a||[]).forEach(x=>m.set(k(x),x));(b||[]).forEach(x=>{if(!m.has(k(x)))m.set(k(x),x);});return[...m.values()];};
+/* Frisch eingerichtetes Gerät: noch keine eigenen Daten, darf beim ersten Abgleich nichts überschreiben */
+function isFresh(st){st=st||{};return !(st.archive||[]).length&&!Object.keys(((st.league||{}).reports)||{}).length&&!Object.keys(((st.league||{}).sched)||{}).length&&!(((st.cfg||{}).rosterH)||[]).some(p=>p.name)&&!(st.events||[]).some(e=>e.type==='pos'&&!st.demo);}
 function mergeState(loc,rem){
+  if(isFresh(loc)&&!isFresh(rem))loc=Object.assign({},loc,{modAt:0});if(isFresh(rem)&&!isFresh(loc))rem=Object.assign({},rem,{modAt:0});
   const remNewer=(rem.modAt||0)>(loc.modAt||0),newer=remNewer?rem:loc,older=remNewer?loc:rem,out=JSON.parse(JSON.stringify(newer));
   out.league=out.league||{url:'',updated:null,reports:{}};out.league.reports=Object.assign({},((older.league||{}).reports)||{},out.league.reports||{});
   if(!out.league.url&&older.league&&older.league.url)out.league.url=older.league.url;
+  if(older.league)for(const k of Object.keys(older.league)){if(k==='reports')continue;const v=out.league[k],ov=older.league[k];const empty=v==null||v===''||(typeof v==='object'&&!Object.keys(v).length);if(empty&&ov!=null)out.league[k]=ov;}
+  if(older.league&&older.league.sched&&out.league.sched&&typeof older.league.sched==='object')out.league.sched=Object.assign({},older.league.sched,out.league.sched);
   out.archive=unionBy(newer.archive,older.archive,g=>g.id);
   if(older.scout&&older.scout.reports){if(!out.scout)out.scout=older.scout;else if(normT(out.scout.team)===normT(older.scout.team))out.scout.reports=unionBy(out.scout.reports,older.scout.reports,r=>r.nr);}
   out.opp=Object.assign({},older.opp||{},out.opp||{});
@@ -2283,7 +2300,7 @@ function mergeState(loc,rem){
 function onlyDemo(){const I=ensureIndex();return I.teams.length===1&&(S.demo||!posEv().length)&&!(S.archive||[]).length&&!Object.keys((S.league||{}).reports||{}).length;}
 function syncLoadSheet(data){
   if(!data||data.format!=='handball-live-sync'||!Array.isArray(data.teams)){toast('Das ist keine Handball-Live-Datei');return;}
-  const local=new Map(teamStates().map(t=>[t.id,t.state]));
+  const local=new Map(teamStates().map(t=>[t.id,t.state]));alignTeams(data,local);
   const rows=data.teams.map(t=>{const l=local.get(t.id);if(!l)return{t,kind:'neu'};const m=mergeState(l,t.state);return{t,kind:m.remNewer?'datei':'geraet',lost:m.lostGame,lostSide:m.lostSide};});
   const onlyLocal=[...local.keys()].filter(id=>!data.teams.some(t=>t.id===id));
   const fresh=onlyDemo();
@@ -2297,8 +2314,13 @@ function syncLoadSheet(data){
   $('sy_merge').onclick=()=>{applyImport(data,'merge');closeSheet();toast('Daten zusammengeführt');};
   $('sy_replace').onclick=()=>{applyImport(data,'replace');closeSheet();toast('Daten übernommen');};
 }
+/* Mannschaften verschiedener Geräte zuordnen: gleiche Kennung, sonst gleicher Teamname (jedes Gerät legt beim ersten Start eine eigene Kennung an) */
+function alignTeams(data,local){const used=new Set([...local.keys()].filter(id=>data.teams.some(t=>t.id===id)));const lab=st=>normT(((st||{}).cfg||{}).nameH||'')+'|'+normT(((st||{}).cfg||{}).teamClass||'');const nm=st=>normT(((st||{}).cfg||{}).nameH||'');
+  for(const t of data.teams){if(local.has(t.id))continue;let hit=[...local.entries()].find(([id,s])=>!used.has(id)&&lab(s)===lab(t.state));if(!hit)hit=[...local.entries()].find(([id,s])=>!used.has(id)&&nm(s)&&nm(s)===nm(t.state));
+    if(hit){if(data.activeId===t.id)data.activeId=hit[0];t.id=hit[0];t.state=Object.assign({},t.state,{teamId:hit[0]});used.add(hit[0]);}}
+  return data;}
 function applyImport(data,mode){
-  const local=new Map(teamStates().map(t=>[t.id,t.state])),merged=new Map();
+  const local=new Map(teamStates().map(t=>[t.id,t.state])),merged=new Map();if(mode!=='replace')alignTeams(data,local);
   if(mode==='replace')data.teams.forEach(t=>merged.set(t.id,t.state));
   else{local.forEach((s,id)=>merged.set(id,s));data.teams.forEach(t=>{const l=local.get(t.id);merged.set(t.id,l?mergeState(l,t.state).state:t.state);});}
   const ids=[...merged.keys()],active=merged.has(S.teamId)?S.teamId:(merged.has(data.activeId)?data.activeId:ids[0]);
@@ -2314,7 +2336,7 @@ async function syncLoadFromFolder(){const txt=await fsRead();if(!txt){toast('Kei
 function syncHTML(){
   if(!IS_WEBAPP)return `<h3>Synchronisation</h3><p class="pending">Die Synchronisation über iCloud gibt es in der installierten Web-App (gijoehh.github.io/handball-live), nicht in der Claude-Vorschau.</p>`;
   const m=syncMeta(),dirty=lastChange()>(m.savedAt||0)+1500;
-  return `<h3>Synchronisation über iCloud</h3>
+  return ghHTML()+`<h3>${ghOn()?'Zusätzlich: Sicherung als Datei (iCloud)':'Synchronisation über iCloud'}</h3>
     <div class="facts"><div class="fact"><small>Dieses Gerät</small><b><input id="sy_dev" value="${esc(deviceName())}" aria-label="Gerätename"></b></div>
       <div class="fact"><small>Zuletzt gesichert</small><b>${dt(m.savedAt)}${m.how?' · '+esc(m.how):''}</b></div>
       <div class="fact"><small>Zuletzt geladen</small><b>${dt(m.loadedAt)}${m.from?' · von '+esc(m.from):''}</b></div>
@@ -2332,7 +2354,7 @@ function syncHTML(){
       <li><b>Regel:</b> Nach dem Spiel auf dem iPad speichern, vor der Arbeit am Mac laden – und umgekehrt. Gleichzeitig auf zwei Geräten am selben Spiel arbeiten geht nicht.</li></ol></details>`;
 }
 function syncBind(){
-  if(!IS_WEBAPP)return;
+  if(!IS_WEBAPP)return;ghBind();
   $('sy_dev').onchange=()=>{const v=$('sy_dev').value.trim();try{if(v)localStorage.setItem('hb-live-device',v);}catch(e){}toast('Gerätename gespeichert');};
   $('sy_save').onclick=()=>syncSave();
   $('sy_file').onchange=async ev=>{const f=ev.target.files[0];if(!f)return;try{syncLoadSheet(JSON.parse(await f.text()));}catch(e){toast('Datei konnte nicht gelesen werden');}};
@@ -2904,6 +2926,87 @@ function progSheet(home,away){
 }
 document.addEventListener('click',ev=>{const b=ev.target.closest&&ev.target.closest('[data-prog]');if(!b)return;ev.preventDefault();const [h,a]=b.dataset.prog.split('|');progSheet(h,a);});
 
+/* ---------- Scouting-Bericht je Team: Was passiert, wenn sie gewinnen / verlieren? Größte Chance, größte Herausforderung ---------- */
+function teamGamesDetail(t){const L=leagueState(),ht0=(S.cfg.halfLen||25)*60;
+  return t.games.map(g=>{const r=g.nr&&L.reports?L.reports[g.nr]:null,side=g.hg,o=side==='heim'?'gast':'heim',ev=r&&r.ev?r.ev:null;
+    const he=ev&&ev.find(e=>e.k==='half'),ht=he?he.t:ht0,end=2*ht;
+    const res=g.gf>g.ga?'S':g.gf<g.ga?'N':'U';const ro=g.roster||[];
+    let ph=null;if(ev){const B=[[0,10*60],[10*60,ht],[ht,ht+10*60],[ht+10*60,end+600]];ph=B.map(([a,b])=>{const G=ev.filter(e=>(e.k==='goal'||e.k==='goal7')&&e.t>=a&&e.t<b);return{f:G.filter(e=>e.team===side).length,a:G.filter(e=>e.team===o).length,min:Math.max(1,(Math.min(b,end)-a)/60)};});}
+    let m7g=0,m7a=0;for(const p of ro){const [x,y]=parseM7(p.m7);m7g+=x;m7a+=y;}if(ev&&!m7a)m7a=m7g+ev.filter(e=>e.k==='miss7'&&e.team===side).length;
+    const sc=ro.filter(p=>p.tore>0).sort((a,b)=>b.tore-a.tore);
+    return{g,res,ph,pens:g.pens,pensO:r&&r[o]?r[o].pens:null,h1f:g.h1f,h1a:g.h1a,m7g,m7a,scorers:sc.length,top:sc[0]||null,ro,hg:g.hg};});}
+const avgOf=(L,f)=>{const v=L.map(f).filter(x=>x!=null&&!isNaN(x));return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;};
+function scoutReportData(t){
+  const D=teamGamesDetail(t),W=D.filter(x=>x.res==='S'),Lo=D.filter(x=>x.res==='N'),A=teamAgg(t),key=[],cmp=[];
+  const sp=seasonPlayersOf(t.name),top=sp?sp.players.filter(p=>p.g0>=2).sort((a,b)=>b.avg-a.avg).slice(0,3):[];
+  const row=(lab,f,fmtv,minDiff,txt)=>{const w=avgOf(W,f),l=avgOf(Lo,f);cmp.push({lab,w,l,fmtv});if(w!=null&&l!=null&&Math.abs(w-l)>=minDiff&&W.length&&Lo.length)key.push({d:Math.abs(w-l)/minDiff,text:txt(w,l)});};
+  const F=v=>v==null?'–':f1(v);
+  row('Ø Tore',x=>x.g.gf,F,4,(w,l)=>`Angriff entscheidet: in Siegen Ø ${f1(w)} Tore, in Niederlagen nur Ø ${f1(l)}.`);
+  row('Ø Gegentore',x=>x.g.ga,F,4,(w,l)=>`Abwehr entscheidet: in Siegen Ø ${f1(w)} Gegentore, in Niederlagen Ø ${f1(l)}.`);
+  row('Ø Halbzeitstand (Differenz)',x=>x.h1f!=null?x.h1f-x.h1a:null,v=>v==null?'–':(v>0?'+':'')+f1(v),3,(w,l)=>`Die Pause ist ein Gradmesser: in Siegen zur Halbzeit Ø ${w>0?'+':''}${f1(w)}, in Niederlagen Ø ${l>0?'+':''}${f1(l)}.`);
+  row('Ø Zeitstrafen',x=>x.pens,F,1.2,(w,l)=>w<l?`Disziplin entscheidet: in Niederlagen Ø ${f1(l)} Zeitstrafen, in Siegen Ø ${f1(w)}.`:`Auch in Siegen viele Zeitstrafen (Ø ${f1(w)}, in Niederlagen Ø ${f1(l)}).`);
+  row('Ø Zeitstrafen Gegner',x=>x.pensO,F,1.2,(w,l)=>w>l?`Überzahl hilft ihnen: der Gegner hatte in ihren Siegen Ø ${f1(w)} Zeitstrafen, in Niederlagen Ø ${f1(l)}.`:`Gegen harte Gegner tun sie sich schwer: in ihren Niederlagen hatte der Gegner Ø ${f1(l)} Zeitstrafen, in Siegen Ø ${f1(w)}.`);
+  row('Ø verschiedene Torschützen',x=>x.ro.length?x.scorers:null,F,2,(w,l)=>w>l?`Breite statt Einzelspieler: in Siegen ${f1(w)} verschiedene Torschützen, in Niederlagen ${f1(l)}.`:`In Niederlagen verteilen sich die Tore breiter (${f1(l)} statt ${f1(w)} Torschützen), die Haupttorschützen fehlen dann.`);
+  for(const p of top){const k=pkey(p.name||''),gl=x=>{const q=x.ro.find(r=>pkey(r.name||'')===k);return q?q.tore:null;};const w=avgOf(W,gl),l=avgOf(Lo,gl);cmp.push({lab:`Tore ${p.name}`,w,l,fmtv:F});
+    if(w!=null&&l!=null&&W.length&&Lo.length&&Math.abs(w-l)>=2.5)key.push({d:Math.abs(w-l)/2.5+1,text:w>l?`Hängt an ${p.name}: in Siegen Ø ${f1(w)} Tore von ihm, in Niederlagen Ø ${f1(l)}.`:`${p.name} trifft auch in Niederlagen viel (Ø ${f1(l)}), in Siegen Ø ${f1(w)}: Er allein entscheidet nicht.`});
+    const absent=D.filter(x=>x.ro.length&&!x.ro.some(r=>pkey(r.name||'')===k));if(absent.length)key.push({d:1.5,text:`Ohne ${p.name}: ${absent.map(x=>`${x.g.gf}:${x.g.ga} ${x.g.hg==='heim'?'gegen':'bei'} ${x.g.gegner}`).join(', ')}.`});}
+  if(D.some(x=>x.ph)){const lab=['1.–10. Minute','Rest 1. HZ','Anfang 2. HZ (10 Min.)','Schlussphase'];
+    const pd=(L,i)=>avgOf(L.filter(x=>x.ph),x=>(x.ph[i].f-x.ph[i].a));
+    let best=null;for(let i=0;i<4;i++){const w=pd(W,i),l=pd(Lo,i);if(w!=null&&l!=null&&W.length&&Lo.length){const d=w-l;if(!best||Math.abs(d)>Math.abs(best.d))best={i,d,w,l};}}
+    if(best&&Math.abs(best.d)>=2)key.push({d:Math.abs(best.d)/2,text:`Entscheidende Phase: ${lab[best.i]}. In Siegen dort Ø ${best.w>0?'+':''}${f1(best.w)} Tore, in Niederlagen Ø ${best.l>0?'+':''}${f1(best.l)}.`});}
+  const home=D.filter(x=>x.hg==='heim'),away=D.filter(x=>x.hg==='gast'),pts=L=>L.reduce((s,x)=>s+(x.res==='S'?2:x.res==='U'?1:0),0);
+  if(home.length&&away.length&&Math.abs(pts(home)/home.length-pts(away)/away.length)>=0.8)key.push({d:1.2,text:`${pts(home)/home.length>pts(away)/away.length?'Heimstark':'Auswärts stärker'}: zu Hause ${pts(home)}:${2*home.length-pts(home)} Punkte, auswärts ${pts(away)}:${2*away.length-pts(away)}.`});
+  key.sort((a,b)=>b.d-a.d);
+  /* Chancen und Herausforderungen aus unserer Sicht */
+  const ch=[],hd=[],ours=isOurTeam(t.name);
+  if(!ours){let F0=null;try{F0=progModel();}catch(e){}const me=F0&&F0.teams.get(F0.find(S.cfg.schedName||S.cfg.nameH)||''),th=F0&&F0.teams.get(F0.find(t.name)||'');
+    if(me&&th){const a=me.att/th.def,b=th.att/me.def;
+      if(th.def>=1.05)ch.push({w:2+(th.def-1)*10,text:`Ihre Abwehr ist schwächer als der Liga-Schnitt (Abwehrwert ${th.def.toFixed(2).replace('.',',')}). Unser Angriff (${me.att.toFixed(2).replace('.',',')}) kann das nutzen.`});
+      if(th.att>=1.08)hd.push({w:2+(th.att-1)*10,text:`Starker Angriff: Angriffswert ${th.att.toFixed(2).replace('.',',')}, Ø ${f1(A.gf)} Tore pro Spiel.`});
+      if(me.def>1&&b>1.1)hd.push({w:1.5+(b-1)*8,text:`Ihr Angriff trifft auf unsere Abwehr, die Gegentore zulässt (Abwehrwert ${me.def.toFixed(2).replace('.',',')}).`});
+      if(a>1.15)ch.push({w:1.5+(a-1)*6,text:`Unser Angriff ist im Verhältnis zu ihrer Abwehr klar überlegen.`});}
+    const tp=top[0];if(tp){const share=A.tot?tp.avg*A.n/A.tot:0;if(share>=.28){hd.push({w:3+share*5,text:`${tp.name} (Ø ${f1(tp.avg)} Tore, ${Math.round(share*100)} % ihrer Tore). Er muss eng gedeckt werden.`});
+      const k=pkey(tp.name||''),stopped=D.filter(x=>{const q=x.ro.find(r=>pkey(r.name||'')===k);return q&&isStopped(tp.avg,q.tore);});
+      if(stopped.length)ch.push({w:2.5,text:`Wird ${tp.name} gestoppt, wird es für sie schwer: ${stopped.map(x=>`${x.g.gf}:${x.g.ga} ${x.g.hg==='heim'?'gegen':'bei'} ${x.g.gegner}`).join(', ')}.`});}}
+    if(A.pens>=3)ch.push({w:1.5+A.pens/2,text:`Viele Zeitstrafen: Ø ${f1(A.pens)} pro Spiel. Überzahl vorbereiten.`});
+    if(A.a7>=4&&A.g7/A.a7<.65)ch.push({w:1.5,text:`Schwache 7m-Quote: ${A.g7}/${A.a7}. Ein 7m gegen uns ist für sie kein sicheres Tor.`});
+    if(A.h2a-A.h1a>=2)ch.push({w:1.5+(A.h2a-A.h1a)/2,text:`In der 2. Halbzeit lassen sie mehr zu: Ø ${f1(A.h1a)} Gegentore in der 1. HZ, ${f1(A.h2a)} in der 2. HZ. Tempo hochhalten.`});
+    if(A.h1-A.h2>=2)ch.push({w:1.2,text:`Ihr Angriff lässt nach der Pause nach: ${f1(A.h1)} Tore in der 1. HZ, ${f1(A.h2)} in der 2. HZ.`});
+    if(A.h1a-A.h2a>=2)hd.push({w:1.2,text:`Ihre Abwehr wird nach der Pause stärker: ${f1(A.h1a)} Gegentore in der 1. HZ, ${f1(A.h2a)} in der 2. HZ. Früh punkten.`});
+    if(D.some(x=>x.ph)){const lab=['in den ersten 10 Minuten','im Rest der 1. HZ','in den ersten 10 Minuten der 2. HZ','in der Schlussphase'],P=D.filter(x=>x.ph);
+      const rate=i=>avgOf(P,x=>(x.ph[i].f-x.ph[i].a)/x.ph[i].min*10);const R=[0,1,2,3].map(i=>({i,v:rate(i)})).filter(x=>x.v!=null);
+      if(R.length){const worst=R.reduce((a,b)=>b.v<a.v?b:a),bestP=R.reduce((a,b)=>b.v>a.v?b:a);
+        if(worst.v<=-1)ch.push({w:1.5+Math.abs(worst.v),text:`Schwächste Phase ${lab[worst.i]}: dort Ø ${f1(worst.v)} Tore Differenz pro 10 Minuten.`});
+        if(bestP.v>=1.5)hd.push({w:1.2+bestP.v/2,text:`Stärkste Phase ${lab[bestP.i]}: Ø +${f1(bestP.v)} Tore pro 10 Minuten. Hier dagegenhalten.`});}}
+    const ng=nextGameVs(t.name);if(ng){const weAreHome=isOurTeam(ng.home);const away=D.filter(x=>x.hg==='gast'),home=D.filter(x=>x.hg==='heim');
+      if(weAreHome&&away.length>=2){const p=away.reduce((s,x)=>s+(x.res==='S'?2:x.res==='U'?1:0),0);if(p/away.length<0.8)ch.push({w:1.5,text:`Wir spielen zu Hause, und auswärts holen sie wenig (${p}:${2*away.length-p} Punkte).`});}
+      if(!weAreHome&&home.length>=2){const p=home.reduce((s,x)=>s+(x.res==='S'?2:x.res==='U'?1:0),0);if(p/home.length>=1.5)hd.push({w:1.5,text:`Auswärtsspiel bei einem heimstarken Team (${p}:${2*home.length-p} Punkte zu Hause).`});}}
+    ch.sort((a,b)=>b.w-a.w);hd.sort((a,b)=>b.w-a.w);}
+  return{D,W,Lo,A,key,cmp,ch,hd,top,ours};
+}
+function scoutReportSheet(name){
+  const t=leagueTable().find(x=>matchTeam(x.name,name));if(!t){toast('Keine Daten zu diesem Team');return;}
+  const R=scoutReportData(t),A=R.A,T=leagueTable(),pos=T.findIndex(x=>normT(x.name)===normT(t.name))+1;let pg=null;try{const ng=nextGameVs(t.name);if(ng)pg={ng,p:progFor(progModel(),ng.home,ng.away)};}catch(e){}
+  const res=x=>`<span class="st ${x.res==='S'?'ok':x.res==='N'?'miss':''}">${x.g.gf}:${x.g.ga}</span>`;
+  let h=head('Scouting-Bericht: '+esc(t.name));
+  h+=`<div class="srep"><div class="pending">Stand ${new Date().toLocaleDateString('de-DE')} · ${R.D.length} Spiele, davon ${R.D.filter(x=>x.ph).length} mit Spielbericht${R.D.filter(x=>x.ph).length<R.D.length?' (Halbzeiten, Zeitstrafen, Phasen und Torschützen nur aus Spielberichten)':''} · ${esc(S.cfg.nameH)}</div>
+    <div class="facts"><div class="fact"><small>Tabelle</small><b>Platz ${pos} · ${ptsStr(t)} Punkte</b></div><div class="fact"><small>Bilanz</small><b>${t.s} S · ${t.u} U · ${t.n} N</b></div>
+      <div class="fact"><small>Ø Tore : Gegentore</small><b>${f1(A.gf)} : ${f1(A.ga)}</b></div><div class="fact"><small>Letzte Spiele</small><b>${R.D.slice(-5).map(res).join(' ')}</b></div></div>
+    ${pg&&pg.p?`<div class="find info"><span><b>Nächstes Spiel ${esc(pg.ng.home)} – ${esc(pg.ng.away)}:</b> Prognose ≈ ${progShort(pg.p)} · Sieg Heim ${pctR(pg.p.pH)}, Gast ${pctR(pg.p.pA)}.</span></div>`:''}
+    ${R.ours?'':`<div class="cols2"><div><h3>Unsere größte Chance</h3>${R.ch.length?R.ch.slice(0,3).map((x,i)=>`<div class="find good"><span>${i===0?'<b>':''}${esc(x.text)}${i===0?'</b>':''}</span></div>`).join(''):'<p class="pending">Noch zu wenige Daten.</p>'}</div>
+      <div><h3>Größte Herausforderung</h3>${R.hd.length?R.hd.slice(0,3).map((x,i)=>`<div class="find warn"><span>${i===0?'<b>':''}${esc(x.text)}${i===0?'</b>':''}</span></div>`).join(''):'<p class="pending">Noch zu wenige Daten.</p>'}</div></div>`}
+    <h3>Key Points: Wenn sie gewinnen und wenn sie verlieren</h3>
+    ${R.W.length&&R.Lo.length?(R.key.length?R.key.slice(0,6).map(x=>`<div class="find info"><span>${esc(x.text)}</span></div>`).join(''):'<p class="pending">Zwischen Siegen und Niederlagen gibt es bisher keine deutlichen Unterschiede.</p>'):`<p class="pending">${!R.Lo.length?'Bisher keine Niederlage':'Bisher kein Sieg'}, ein Vergleich ist noch nicht möglich.</p>`}
+    <div class="tw"><table><thead><tr><th></th><th class="r">in Siegen (${R.W.length})</th><th class="r">in Niederlagen (${R.Lo.length})</th></tr></thead><tbody>${R.cmp.filter(c=>c.w!=null||c.l!=null).map(c=>`<tr><td>${esc(c.lab)}</td><td class="r num">${c.fmtv(c.w)}</td><td class="r num">${c.fmtv(c.l)}</td></tr>`).join('')}</tbody></table></div>
+    ${A.players.some(p=>p.name)?'<h3>Torschützen</h3>':''}<div class="tw"${A.players.some(p=>p.name)?'':' hidden'}><table><thead><tr><th>Nr.</th><th>Name</th><th class="r">Sp</th><th class="r">Tore</th><th class="r">Ø</th><th class="r">7m</th></tr></thead><tbody>${A.players.filter(p=>p.name).slice(0,10).map(p=>`<tr><td class="num">${p.nr}</td><td>${esc(p.name)}</td><td class="r num">${p.games}</td><td class="r num">${p.tore}</td><td class="r num">${f1(p.tore/p.games)}</td><td class="r num">${p.a7?p.g7+'/'+p.a7:'–'}</td></tr>`).join('')}</tbody></table></div>
+    <h3>Alle Spiele</h3><div class="tw"><table><thead><tr><th>Datum</th><th>Gegner</th><th class="r">Ergebnis</th><th class="r">HZ</th><th class="r">2 Min</th><th>Bester Werfer</th></tr></thead><tbody>${R.D.map(x=>`<tr><td class="num">${esc(x.g.datum||'')}</td><td>${x.g.hg==='heim'?'gegen':'bei'} ${esc(x.g.gegner)}</td><td class="r num">${res(x)}</td><td class="r num">${x.h1f!=null?x.h1f+':'+x.h1a:'–'}</td><td class="r num">${x.pens??'–'}</td><td>${x.top?esc(x.top.name)+' '+x.top.tore:'–'}</td></tr>`).join('')}</tbody></table></div>
+    <p class="pending">Berechnet aus den eingelesenen Spielberichten und Ergebnissen. Je mehr Berichte, desto belastbarer.</p></div>
+    <div class="row noprint"><button class="tool primary" id="sr_pdf">Als PDF speichern / drucken</button><button class="tool" data-close>Schließen</button></div>`;
+  openSheet(h);$('sheet').classList.add('printable');
+  $('sr_pdf').onclick=()=>{document.body.classList.add('print-sheet');const done=()=>{document.body.classList.remove('print-sheet');window.removeEventListener('afterprint',done);};window.addEventListener('afterprint',done);setTimeout(()=>{window.print();setTimeout(done,1500);},50);};
+}
+document.addEventListener('click',ev=>{const b=ev.target.closest&&ev.target.closest('[data-screp]');if(!b)return;ev.preventDefault();scoutReportSheet(b.dataset.screp);});
+
 /* Spieldaten aus dem Spielplan übernehmen */
 function nextGameVs(name){
   const lim=Date.now()-3*36e5,L=leagueState();
@@ -3164,6 +3267,74 @@ function pdbRowsFromImport(){
 
 setTimeout(()=>{try{pdbRefresh();}catch(e){}},1500);
 window.hbProg={progMatches,progFit,progFor,dkTime};
+
+/* ---------- Automatischer Sync über ein privates GitHub-Gist, im Gerät verschlüsselt (AES-GCM, Schlüssel aus dem Passwort) ---------- */
+const GH_KEY='hb-live-gh',GH_FILE='handball-live.enc',GH_DESC='Handball Live · verschlüsselte Sync-Daten';
+const GH_TOKEN_URL='https://github.com/settings/tokens/new?scopes=gist&description=Handball%20Live';
+function ghCfg(){try{return JSON.parse(localStorage.getItem(GH_KEY))||{};}catch(e){return{};}}
+function ghSet(o){const c=Object.assign(ghCfg(),o);try{localStorage.setItem(GH_KEY,JSON.stringify(c));}catch(e){}return c;}
+const ghOn=()=>{const c=ghCfg();return !!(IS_WEBAPP&&c.token&&c.gist&&c.pass);};
+const b64e=buf=>{const a=new Uint8Array(buf);let s='';for(let i=0;i<a.length;i+=0x8000)s+=String.fromCharCode.apply(null,a.subarray(i,i+0x8000));return btoa(s);};
+const b64d=s=>{const b=atob(s),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a;};
+async function ghKeyOf(pass,salt){const km=await crypto.subtle.importKey('raw',new TextEncoder().encode(pass),'PBKDF2',false,['deriveKey']);
+  return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:200000,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);}
+async function gzipB(bytes,dir){const cs=dir==='c'?new CompressionStream('gzip'):new DecompressionStream('gzip');const st=new Blob([bytes]).stream().pipeThrough(cs);return new Uint8Array(await new Response(st).arrayBuffer());}
+async function ghEncrypt(obj,pass){let bytes=new TextEncoder().encode(JSON.stringify(obj)),z=0;if(window.CompressionStream){try{bytes=await gzipB(bytes,'c');z=1;}catch(e){}}
+  const salt=crypto.getRandomValues(new Uint8Array(16)),iv=crypto.getRandomValues(new Uint8Array(12)),k=await ghKeyOf(pass,salt);
+  const data=await crypto.subtle.encrypt({name:'AES-GCM',iv},k,bytes);
+  return JSON.stringify({v:1,app:'handball-live',z,salt:b64e(salt),iv:b64e(iv),data:b64e(data),savedAt:obj.savedAt,device:obj.device});}
+async function ghDecrypt(txt,pass){const o=JSON.parse(txt);const k=await ghKeyOf(pass,b64d(o.salt));let bytes=new Uint8Array(await crypto.subtle.decrypt({name:'AES-GCM',iv:b64d(o.iv)},k,b64d(o.data)));
+  if(o.z)bytes=await gzipB(bytes,'d');return JSON.parse(new TextDecoder().decode(bytes));}
+async function ghApi(path,opt){opt=opt||{};const c=ghCfg();const r=await fetch('https://api.github.com'+path,{method:opt.method||'GET',body:opt.body,cache:'no-store',
+    headers:Object.assign({'Accept':'application/vnd.github+json','Authorization':'Bearer '+(opt.token||c.token),'X-GitHub-Api-Version':'2022-11-28'},opt.body?{'Content-Type':'application/json'}:{})});
+  if(!r.ok){const e=new Error('GitHub antwortet mit '+r.status);e.status=r.status;throw e;}return r.status===204?null:r.json();}
+async function ghFindOrCreate(token){for(let page=1;page<=5;page++){const L=await ghApi('/gists?per_page=100&page='+page,{token});const g=L.find(x=>x.files&&x.files[GH_FILE]);if(g)return{id:g.id,found:true};if(L.length<100)break;}
+  const g=await ghApi('/gists',{token,method:'POST',body:JSON.stringify({description:GH_DESC,public:false,files:{[GH_FILE]:{content:'{"v":0}'}}})});return{id:g.id,found:false};}
+async function ghRead(id,token){const g=await ghApi('/gists/'+(id||ghCfg().gist),{token});const f=g.files&&g.files[GH_FILE];if(!f)return null;
+  if(f.truncated&&f.raw_url){const r=await fetch(f.raw_url,{cache:'no-store'});return r.text();}return f.content;}
+let ghBusy=false,ghTimer=null,ghState={st:'idle'};
+const ghErr=e=>e&&e.status===401?'GitHub-Zugangsschlüssel ungültig oder abgelaufen':e&&e.status===404?'Sync-Speicher auf GitHub nicht gefunden':e&&(e.name==='OperationError'||/decrypt/i.test(e.message||''))?'Passwort passt nicht zu den gespeicherten Daten':!navigator.onLine?'offline, wird später nachgeholt':'Sync-Fehler: '+((e&&e.message)||e);
+async function ghSync(reason){
+  if(!ghOn()||ghBusy)return;const live=S&&S.clock&&S.clock.run;if(live&&reason!=='manual')return;
+  ghBusy=true;ghState={st:'busy'};renderCloud();
+  try{const c=ghCfg(),txt=await ghRead();let merged=false;
+    if(txt){const o=JSON.parse(txt);if(o.v>=1&&o.savedAt&&o.savedAt!==c.remoteAt){const remote=await ghDecrypt(txt,c.pass);
+      if(remote&&remote.format==='handball-live-sync'){applyImport(remote,'merge');ghSet({remoteAt:o.savedAt,remoteFrom:o.device});merged=true;}}}
+    const c2=ghCfg();if(merged||!txt||lastChange()>(c2.pushedAt||0)){const d=collectAll(),enc=await ghEncrypt(d,c2.pass);
+      await ghApi('/gists/'+c2.gist,{method:'PATCH',body:JSON.stringify({files:{[GH_FILE]:{content:enc}}})});const now=Date.now();ghSet({pushedAt:Math.max(now,lastChange()),remoteAt:d.savedAt});setSyncMeta({savedAt:d.savedAt,how:'GitHub (automatisch)'});}
+    ghState={st:'ok',at:Date.now(),merged};
+  }catch(e){ghState={st:'err',msg:ghErr(e)};}
+  ghBusy=false;renderCloud();if(view==='einstellungen'&&setTab==='app')renderSettings();}
+function ghSchedule(ms){if(!ghOn())return;clearTimeout(ghTimer);ghTimer=setTimeout(()=>ghSync('auto'),ms||15000);}
+{const prev=window.hbAutoSync;window.hbAutoSync=()=>{try{prev&&prev();}catch(e){}ghSchedule();};}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')ghSchedule(1200);});
+window.addEventListener('online',()=>ghSchedule(1500));
+setInterval(()=>{if(document.visibilityState==='visible')ghSync('timer');},180000);
+setTimeout(()=>ghSync('start'),2500);
+async function ghConnect(token,pass){
+  token=(token||'').trim();if(!token||!pass||pass.length<8)throw new Error('Bitte Zugangsschlüssel und ein Passwort mit mindestens 8 Zeichen eingeben');
+  const g=await ghFindOrCreate(token);
+  if(g.found){const txt=await ghRead(g.id,token);const o=txt?JSON.parse(txt):{};if(o.v>=1){try{await ghDecrypt(txt,pass);}catch(e){const er=new Error('Auf GitHub liegen schon Daten mit einem anderen Passwort. Bitte das Passwort verwenden, das du auf dem anderen Gerät eingegeben hast.');er.pass=true;throw er;}}}
+  ghSet({token,pass,gist:g.id,pushedAt:0,remoteAt:null});ghState={st:'idle'};await ghSync('manual');return g.found;}
+function ghHTML(){
+  if(!IS_WEBAPP)return '';const c=ghCfg(),on=ghOn(),dirty=on&&lastChange()>(c.pushedAt||0)+1500;
+  if(!on)return `<h3>Automatischer Sync (GitHub)</h3>
+    <p class="pending">MacBook, iPad und weitere Geräte gleichen sich automatisch ab: beim Öffnen, nach Änderungen und alle drei Minuten. Gespeichert wird in einem privaten Gist in deinem GitHub-Konto. Die Daten werden vorher auf dem Gerät mit deinem Passwort verschlüsselt, GitHub sieht keine Namen oder Ergebnisse.</p>
+    <ol class="plan"><li><a href="${GH_TOKEN_URL}" target="_blank" rel="noopener">Zugangsschlüssel bei GitHub anlegen</a> (einmalig, am besten am Mac): Ablaufdatum wählen, nur das Häkchen „gist“ ist gesetzt, dann „Generate token“ und den Schlüssel kopieren.</li>
+      <li>Hier den Schlüssel und ein Sync-Passwort eingeben und „Verbinden“. Auf jedem weiteren Gerät denselben Schlüssel und <b>dasselbe Passwort</b>.</li></ol>
+    <div class="form"><label>GitHub-Zugangsschlüssel<input id="gh_tok" type="password" autocomplete="off" placeholder="ghp_…"></label><label>Sync-Passwort (mind. 8 Zeichen)<input id="gh_pw" type="password" autocomplete="new-password"></label></div>
+    <div class="row"><button class="tool primary" id="gh_con">Verbinden</button><span class="pending" id="gh_st"></span></div>
+    <p class="pending">Das Passwort wird nur auf deinen Geräten gespeichert. Geht es verloren, sind die Daten auf GitHub nicht mehr lesbar, die Daten auf den Geräten bleiben erhalten.</p>`;
+  return `<h3>Automatischer Sync (GitHub)</h3>
+    <div class="facts"><div class="fact"><small>Status</small><b>${ghState.st==='err'?`<span class="err">${esc(ghState.msg)}</span>`:ghState.st==='busy'?'gleicht ab …':dirty?'Änderungen werden gleich gesendet':'synchron'}</b></div>
+      <div class="fact"><small>Zuletzt gesendet</small><b>${dt(c.pushedAt)}</b></div><div class="fact"><small>Zuletzt übernommen von</small><b>${esc(c.remoteFrom||'–')}</b></div></div>
+    <div class="row"><button class="tool primary" id="gh_now">Jetzt synchronisieren</button><button class="tool" id="gh_off">Sync auf diesem Gerät trennen</button></div>
+    <p class="pending">Während die Spieluhr läuft, wird nicht abgeglichen. Das passiert automatisch, sobald die Uhr steht.</p>`;}
+function ghBind(){
+  if($('gh_con'))$('gh_con').onclick=async()=>{const st=$('gh_st');st.textContent='Verbinde …';try{const found=await ghConnect($('gh_tok').value,$('gh_pw').value);toast(found?'Verbunden, Daten vom anderen Gerät übernommen':'Verbunden, Sync-Speicher angelegt');renderSettings();}
+    catch(e){st.innerHTML='<span class="err">'+esc(e.pass?e.message:e.status===401?'Zugangsschlüssel ungültig':e.message||String(e))+'</span>';}};
+  if($('gh_now'))$('gh_now').onclick=()=>ghSync('manual');
+  if($('gh_off'))$('gh_off').onclick=()=>{try{localStorage.removeItem(GH_KEY);}catch(e){}ghState={st:'idle'};toast('Sync auf diesem Gerät getrennt');renderSettings();renderCloud();};}
 
 S=load();
 if(!S){S=fresh();loadDemo();}
