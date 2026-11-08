@@ -615,7 +615,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='48';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='49';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1430,7 +1430,7 @@ function renderPrep(){
     <label>Kader Gegner<textarea id="g_rG" style="min-height:250px">${esc(rosterText(c.rosterG))}</textarea></label></div>
   </section>
   </div><div class="pcol">
-  <section class="card"><h2 class="ch">${logoImg(c.nameG,'md')}Gegner${['Gegner','Beispielgegner'].includes(c.nameG)?'':': '+esc(c.nameG)}${(g.typ||'liga')!=='liga'?` <span class="st diff">${TYP_LABEL[g.typ]}</span>`:''}${(()=>{const e=oppEntry(c.nameG);return e&&okUrl(e.url)?' '+linkBtn(e.url,'Teamspielplan öffnen','inline'):'';})()}${!['Gegner','Beispielgegner'].includes(c.nameG)&&leagueTable().some(x=>matchTeam(x.name,c.nameG))?` <button class="tool primary inline" data-screp="${esc(c.nameG)}">Scouting-Bericht (PDF)</button>`:''}</h2>
+  <section class="card"><h2 class="ch">${logoImg(c.nameG,'md')}Gegner${['Gegner','Beispielgegner'].includes(c.nameG)?'':': '+esc(c.nameG)}${(g.typ||'liga')!=='liga'?` <span class="st diff">${TYP_LABEL[g.typ]}</span>`:''}${(()=>{const e=oppEntry(c.nameG);return e&&okUrl(e.url)?' '+linkBtn(e.url,'Teamspielplan öffnen','inline'):'';})()}${!['Gegner','Beispielgegner'].includes(c.nameG)&&leagueTable().some(x=>matchTeam(x.name,c.nameG))?` <button class="tool primary inline" data-screp="${esc(c.nameG)}" data-prep>Scouting-Bericht (PDF)</button>`:''}</h2>
     ${oppSelectHTML()}${oppInfoHTML()}${['Gegner','Beispielgegner'].includes(c.nameG)?'':stoppedGamesHTML(c.nameG)}${(()=>{if((g.typ||'liga')!=='liga'||['Gegner','Beispielgegner'].includes(c.nameG))return '';const ng=nextGameVs(c.nameG);if(!ng)return '';const p=progFor(progModel(),ng.home,ng.away);if(!p)return '';
       const us=isOurTeam(ng.home)?'h':'a',win=us==='h'?p.pH:p.pA,lose=us==='h'?p.pA:p.pH;
       return `<div class="find ${win>=.6?'good':lose>=.6?'warn':'info'}"><span><b>Prognose ${esc(ng.home)} – ${esc(ng.away)}: ≈ ${progShort(p)}</b> · Sieg für uns ${pctR(win)}, Unentschieden ${pctR(p.pD)}, Niederlage ${pctR(lose)}. <button class="mini" data-prog="${esc(ng.home+'|'+ng.away)}">Details</button></span></div>`;})()}
@@ -2962,7 +2962,20 @@ function teamGamesDetail(t){const L=leagueState(),ht0=(S.cfg.halfLen||25)*60;
     const sc=ro.filter(p=>p.tore>0).sort((a,b)=>b.tore-a.tore);
     return{g,res,ph,pens:g.pens,pensO:r&&r[o]?r[o].pens:null,h1f:g.h1f,h1a:g.h1a,m7g,m7a,scorers:sc.length,top:sc[0]||null,ro,hg:g.hg};});}
 const avgOf=(L,f)=>{const v=L.map(f).filter(x=>x!=null&&!isNaN(x));return v.length?v.reduce((a,b)=>a+b,0)/v.length:null;};
-function scoutReportData(t){
+
+/* Spielkontext für den Scouting-Bericht: aus der Vorbereitung (Spielart, Heim/Gast, Termin) oder aus dem Ligaspielplan */
+function scoutCtx(name,fromPrep){
+  const g=S.game,ours=S.cfg.nameH;
+  if(fromPrep&&matchTeam(S.cfg.nameG,name)){const weHome=g.wir!=='gast';
+    return{typ:g.typ||'liga',weHome,known:!!g.wir,home:weHome?ours:name,away:weHome?name:ours,datum:g.datum||'',zeit:g.zeit||'',halle:g.halle||'',src:'prep'};}
+  const ng=nextGameVs(name);if(!ng)return null;const weHome=isOurTeam(ng.home),d=ng.date?new Date(ng.date):null;
+  return{typ:'liga',weHome,known:true,home:weHome?ours:name,away:weHome?name:ours,datum:d?d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'):'',zeit:d?String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'):'',halle:ng.venue||'',src:'plan'};}
+function scoutCtxTitle(t,cx){if(!cx)return 'Scouting-Bericht: '+t.name;return `Scouting-Bericht zum ${TYP_LABEL[cx.typ]||"Spiel"} ${cx.home} vs. ${cx.away}`;}
+function scoutCtxLine(cx){if(!cx)return '';const d=cx.datum?new Date(cx.datum+'T12:00:00'):null;
+  return [d?d.toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'}):'',cx.zeit?cx.zeit+' Uhr':'',cx.halle,cx.known?(cx.weHome?'Heimspiel':'Auswärtsspiel'):'Heim/Gast nicht angegeben, gerechnet als Heimspiel'].filter(Boolean).join(' · ');}
+function scoutCtxProg(t,cx){if(!cx)return null;const ours=S.cfg.schedName||S.cfg.nameH,h=cx.weHome?ours:t.name,a=cx.weHome?t.name:ours;try{const p=progFor(progModel(),h,a);if(!p)return null;
+  return{p,win:cx.weHome?p.pH:p.pA,lose:cx.weHome?p.pA:p.pH,us:Math.round(cx.weHome?p.eh:p.ea),them:Math.round(cx.weHome?p.ea:p.eh)};}catch(e){return null;}}
+function scoutReportData(t,cx){
   const D=teamGamesDetail(t),W=D.filter(x=>x.res==='S'),Lo=D.filter(x=>x.res==='N'),A=teamAgg(t),key=[],cmp=[];
   const sp=seasonPlayersOf(t.name),top=sp?sp.players.filter(p=>p.g0>=2).sort((a,b)=>b.avg-a.avg).slice(0,3):[];
   const row=(lab,f,fmtv,minDiff,txt)=>{const w=avgOf(W,f),l=avgOf(Lo,f);cmp.push({lab,w,l,fmtv});if(w!=null&&l!=null&&Math.abs(w-l)>=minDiff&&W.length&&Lo.length)key.push({d:Math.abs(w-l)/minDiff,text:txt(w,l)});};
@@ -3004,21 +3017,21 @@ function scoutReportData(t){
       if(R.length){const worst=R.reduce((a,b)=>b.v<a.v?b:a),bestP=R.reduce((a,b)=>b.v>a.v?b:a);
         if(worst.v<=-1)ch.push({w:1.5+Math.abs(worst.v),text:`Schwächste Phase ${lab[worst.i]}: dort Ø ${f1(worst.v)} Tore Differenz pro 10 Minuten.`});
         if(bestP.v>=1.5)hd.push({w:1.2+bestP.v/2,text:`Stärkste Phase ${lab[bestP.i]}: Ø +${f1(bestP.v)} Tore pro 10 Minuten. Hier dagegenhalten.`});}}
-    const ng=nextGameVs(t.name);if(ng){const weAreHome=isOurTeam(ng.home);const away=D.filter(x=>x.hg==='gast'),home=D.filter(x=>x.hg==='heim');
+    const gx=cx===undefined?scoutCtx(t.name,false):cx;if(gx){const weAreHome=gx.weHome;const away=D.filter(x=>x.hg==='gast'),home=D.filter(x=>x.hg==='heim');
       if(weAreHome&&away.length>=2){const p=away.reduce((s,x)=>s+(x.res==='S'?2:x.res==='U'?1:0),0);if(p/away.length<0.8)ch.push({w:1.5,text:`Wir spielen zu Hause, und auswärts holen sie wenig (${p}:${2*away.length-p} Punkte).`});}
       if(!weAreHome&&home.length>=2){const p=home.reduce((s,x)=>s+(x.res==='S'?2:x.res==='U'?1:0),0);if(p/home.length>=1.5)hd.push({w:1.5,text:`Auswärtsspiel bei einem heimstarken Team (${p}:${2*home.length-p} Punkte zu Hause).`});}}
     ch.sort((a,b)=>b.w-a.w);hd.sort((a,b)=>b.w-a.w);}
   return{D,W,Lo,A,key,cmp,ch,hd,top,ours};
 }
-function scoutReportSheet(name){
+function scoutReportSheet(name,fromPrep){
   const t=leagueTable().find(x=>matchTeam(x.name,name));if(!t){toast('Keine Daten zu diesem Team');return;}
-  const R=scoutReportData(t),A=R.A,T=leagueTable(),pos=T.findIndex(x=>normT(x.name)===normT(t.name))+1;let pg=null;try{const ng=nextGameVs(t.name);if(ng)pg={ng,p:progFor(progModel(),ng.home,ng.away)};}catch(e){}
+  const cx=scoutCtx(t.name,!!fromPrep),R=scoutReportData(t,cx),A=R.A,T=leagueTable(),pos=T.findIndex(x=>normT(x.name)===normT(t.name))+1,pg=scoutCtxProg(t,cx);
   const res=x=>`<span class="st ${x.res==='S'?'ok':x.res==='N'?'miss':''}">${x.g.gf}:${x.g.ga}</span>`;
-  let h=head('Scouting-Bericht: '+esc(t.name));
-  h+=`<div class="srep"><div class="pending">Stand ${new Date().toLocaleDateString('de-DE')} · ${R.D.length} Spiele, davon ${R.D.filter(x=>x.ph).length} mit Spielbericht${R.D.filter(x=>x.ph).length<R.D.length?' (Halbzeiten, Zeitstrafen, Phasen und Torschützen nur aus Spielberichten)':''} · ${esc(S.cfg.nameH)}</div>
+  let h=head(esc(scoutCtxTitle(t,cx)));
+  h+=`<div class="srep">${cx?`<div class="pending"><b>${esc(scoutCtxLine(cx))}</b>${cx.src==='plan'?' (aus dem Ligaspielplan)':''}</div>`:''}<div class="pending">Gegner: ${esc(t.name)} · Stand ${new Date().toLocaleDateString('de-DE')} · ${R.D.length} Spiele, davon ${R.D.filter(x=>x.ph).length} mit Spielbericht${R.D.filter(x=>x.ph).length<R.D.length?' (Halbzeiten, Zeitstrafen, Phasen und Torschützen nur aus Spielberichten)':''} · ${esc(S.cfg.nameH)}</div>
     <div class="facts"><div class="fact"><small>Tabelle</small><b>Platz ${pos} · ${ptsStr(t)} Punkte</b></div><div class="fact"><small>Bilanz</small><b>${t.s} S · ${t.u} U · ${t.n} N</b></div>
       <div class="fact"><small>Ø Tore : Gegentore</small><b>${f1(A.gf)} : ${f1(A.ga)}</b></div><div class="fact"><small>Letzte Spiele</small><b>${R.D.slice(-5).map(res).join(' ')}</b></div></div>
-    ${pg&&pg.p?`<div class="find info"><span><b>Nächstes Spiel ${esc(pg.ng.home)} – ${esc(pg.ng.away)}:</b> Prognose ≈ ${progShort(pg.p)} · Sieg Heim ${pctR(pg.p.pH)}, Gast ${pctR(pg.p.pA)}.</span></div>`:''}
+    ${pg?`<div class="find ${pg.win>=.6?'good':pg.lose>=.6?'warn':'info'}"><span><b>Prognose ${esc(cx.home)} – ${esc(cx.away)}: ≈ ${cx.weHome?pg.us+':'+pg.them:pg.them+':'+pg.us}</b> · Sieg für uns ${pctR(pg.win)}, Unentschieden ${pctR(pg.p.pD)}, Niederlage ${pctR(pg.lose)} (${cx.weHome?'Heimspiel':'Auswärtsspiel'}${cx.typ!=='liga'?', berechnet aus den Ligaergebnissen':''}).</span></div>`:''}
     ${R.ours?'':`<div class="cols2"><div><h3>Unsere größte Chance</h3>${R.ch.length?R.ch.slice(0,3).map((x,i)=>`<div class="find good"><span>${i===0?'<b>':''}${esc(x.text)}${i===0?'</b>':''}</span></div>`).join(''):'<p class="pending">Noch zu wenige Daten.</p>'}</div>
       <div><h3>Größte Herausforderung</h3>${R.hd.length?R.hd.slice(0,3).map((x,i)=>`<div class="find warn"><span>${i===0?'<b>':''}${esc(x.text)}${i===0?'</b>':''}</span></div>`).join(''):'<p class="pending">Noch zu wenige Daten.</p>'}</div></div>`}
     <h3>Key Points: Wann gewinnen sie, wann nicht?</h3>
@@ -3029,17 +3042,17 @@ function scoutReportSheet(name){
     <p class="pending">Berechnet aus den eingelesenen Spielberichten und Ergebnissen. Je mehr Berichte, desto belastbarer.</p></div>
     <div class="row noprint"><button class="tool primary" id="sr_pdf">Als PDF speichern / teilen</button><button class="tool" id="sr_print">Drucken</button><button class="tool" data-close>Schließen</button></div>`;
   openSheet(h);$('sheet').classList.add('printable');
-  $('sr_pdf').onclick=()=>scoutPdfSave(t.name);if(!window.jspdf)loadScript(JSPDF_URL).catch(()=>{});
+  $('sr_pdf').onclick=()=>scoutPdfSave(t.name,cx);if(!window.jspdf)loadScript(JSPDF_URL).catch(()=>{});
   $('sr_print').onclick=()=>{document.body.classList.add('print-sheet');const done=()=>{document.body.classList.remove('print-sheet');window.removeEventListener('afterprint',done);};window.addEventListener('afterprint',done);setTimeout(()=>{window.print();setTimeout(done,1500);},50);};
 }
-document.addEventListener('click',ev=>{const b=ev.target.closest&&ev.target.closest('[data-screp]');if(!b)return;ev.preventDefault();scoutReportSheet(b.dataset.screp);});
+document.addEventListener('click',ev=>{const b=ev.target.closest&&ev.target.closest('[data-screp]');if(!b)return;ev.preventDefault();scoutReportSheet(b.dataset.screp,b.hasAttribute('data-prep'));});
 
 /* ---------- Scouting-Bericht als echte PDF-Datei (jsPDF), Teilen-Menü am iPad, Download am Mac ---------- */
 const JSPDF_URL='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
 const pdfTxt=s=>String(s==null?'':s).replace(/≈/g,'ca.').replace(/−/g,'-').replace(/[⏎★✓×]/g,'').replace(/[  ]/g,' ').replace(/[^\x00-\xFF€„“”‚‘’–—…•·]/g,'');
-async function scoutPdfBlob(t){
+async function scoutPdfBlob(t,cx){
   if(!window.jspdf)await loadScript(JSPDF_URL);if(!window.jspdf)throw new Error('PDF-Erzeugung nicht verfügbar');
-  const R=scoutReportData(t),A=R.A,T=leagueTable(),pos=T.findIndex(x=>normT(x.name)===normT(t.name))+1;
+  const R=scoutReportData(t,cx),A=R.A,T=leagueTable(),pos=T.findIndex(x=>normT(x.name)===normT(t.name))+1,pg=scoutCtxProg(t,cx);
   const doc=new window.jspdf.jsPDF({unit:'mm',format:'a4'}),W=210,M=16,CW=W-2*M;let y=M;
   const need=h=>{if(y+h>297-M){doc.addPage();y=M;}};
   const txt=(s,o)=>{o=o||{};doc.setFont('helvetica',o.bold?'bold':'normal');doc.setFontSize(o.size||10);doc.setTextColor(...(o.color||[20,24,32]));
@@ -3049,10 +3062,11 @@ async function scoutPdfBlob(t){
   const table=(head,rows,widths,alignR)=>{const lh=5.2;const draw=(r,b)=>{need(lh);let x=M;doc.setFont('helvetica',b?'bold':'normal');doc.setFontSize(9);doc.setTextColor(20,24,32);
       r.forEach((c,i)=>{const s=doc.splitTextToSize(pdfTxt(c),widths[i]-1)[0]||'';if(alignR&&alignR[i])doc.text(s,x+widths[i]-1,y+3.8,{align:'right'});else doc.text(s,x,y+3.8);x+=widths[i];});y+=lh;};
     draw(head,true);doc.setDrawColor(220,224,230);doc.line(M,y,W-M,y);rows.forEach(r=>draw(r,false));y+=2;};
-  doc.setFont('helvetica','bold');doc.setFontSize(18);doc.setTextColor(20,24,32);doc.text(pdfTxt('Scouting-Bericht: '+t.name),M,y+6);y+=10;
-  txt(`Stand ${new Date().toLocaleDateString('de-DE')} · ${R.D.length} Spiele, davon ${R.D.filter(x=>x.ph).length} mit Spielbericht · erstellt für ${S.cfg.nameH}`,{size:8.5,color:[90,98,112],after:3});
+  {doc.setFont('helvetica','bold');const tl=doc.splitTextToSize(pdfTxt(scoutCtxTitle(t,cx)),CW);doc.setFontSize(tl.length>1?15:17);const tl2=doc.splitTextToSize(pdfTxt(scoutCtxTitle(t,cx)),CW);doc.setTextColor(20,24,32);doc.text(tl2,M,y+6);y+=4+tl2.length*7;}
+  if(cx)txt(scoutCtxLine(cx),{bold:true,size:10,after:1});
+  txt(`Gegner: ${t.name} · Stand ${new Date().toLocaleDateString('de-DE')} · ${R.D.length} Spiele, davon ${R.D.filter(x=>x.ph).length} mit Spielbericht · erstellt für ${S.cfg.nameH}`,{size:8.5,color:[90,98,112],after:3});
   table(['Tabelle','Bilanz','Ø Tore : Gegentore','Letzte Spiele'],[[`Platz ${pos} · ${ptsStr(t)} Punkte`,`${t.s} S · ${t.u} U · ${t.n} N`,`${f1(A.gf)} : ${f1(A.ga)}`,R.D.slice(-5).map(x=>x.g.gf+':'+x.g.ga).join('  ')]],[42,36,38,62]);
-  try{const ng=nextGameVs(t.name),p=ng&&progFor(progModel(),ng.home,ng.away);if(p)txt(`Nächstes Spiel ${ng.home} – ${ng.away}: Prognose ca. ${progShort(p)} · Sieg Heim ${pctR(p.pH)}, Unentschieden ${pctR(p.pD)}, Sieg Gast ${pctR(p.pA)}`,{bold:true,size:9.5,after:2});}catch(e){}
+  if(pg)txt(`Prognose ${cx.home} – ${cx.away}: ca. ${cx.weHome?pg.us+':'+pg.them:pg.them+':'+pg.us} · Sieg für uns ${pctR(pg.win)}, Unentschieden ${pctR(pg.p.pD)}, Niederlage ${pctR(pg.lose)} (${cx.weHome?'Heimspiel':'Auswärtsspiel'}${cx.typ!=='liga'?', berechnet aus den Ligaergebnissen':''})`,{bold:true,size:9.5,after:2});
   if(!R.ours){h3('Unsere größte Chance');(R.ch.length?R.ch.slice(0,3):[{text:'Noch zu wenige Daten.'}]).forEach((x,i)=>bullet(x.text,[35,134,84]));
     h3('Größte Herausforderung');(R.hd.length?R.hd.slice(0,3):[{text:'Noch zu wenige Daten.'}]).forEach(x=>bullet(x.text,[176,96,0]));}
   h3('Key Points: Wann gewinnen sie, wann nicht?');
@@ -3065,12 +3079,12 @@ async function scoutPdfBlob(t){
   const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(140,146,156);doc.text(pdfTxt(`Handball Live · ${t.name} · Seite ${i}/${n}`),W/2,297-8,{align:'center'});}
   return doc.output('blob');
 }
-async function scoutPdfSave(name){
+async function scoutPdfSave(name,cx){
   const t=leagueTable().find(x=>matchTeam(x.name,name));if(!t)return;const btn=$('sr_pdf');if(btn){btn.disabled=true;btn.textContent='PDF wird erstellt …';}
-  try{const blob=await scoutPdfBlob(t),fn=('Scouting '+t.name+' '+new Date().toISOString().slice(0,10)).replace(/[^\wÄÖÜäöüß .-]+/g,'').replace(/\s+/g,'_')+'.pdf';
+  try{const blob=await scoutPdfBlob(t,cx),fn=('Scouting '+(cx&&cx.typ!=='liga'?TYP_LABEL[cx.typ]+' ':'')+t.name+' '+((cx&&cx.datum)||new Date().toISOString().slice(0,10))).replace(/[^\wÄÖÜäöüß .-]+/g,'').replace(/\s+/g,'_')+'.pdf';
     const file=new File([blob],fn,{type:'application/pdf'});
     if(navigator.canShare&&navigator.canShare({files:[file]})&&IS_TOUCH){try{await navigator.share({files:[file],title:'Scouting-Bericht '+t.name});}
-      catch(e){if(e&&e.name==='NotAllowedError'&&btn){/* iPad verlangt einen frischen Tipp: fertige Datei beim nächsten Tipp teilen */btn.disabled=false;btn.textContent='PDF ist fertig: jetzt teilen';btn.onclick=async()=>{try{await navigator.share({files:[file],title:'Scouting-Bericht '+t.name});}catch(x){}btn.textContent='Als PDF speichern / teilen';btn.onclick=()=>scoutPdfSave(name);};return;}if(e&&e.name!=='AbortError')throw e;}}
+      catch(e){if(e&&e.name==='NotAllowedError'&&btn){/* iPad verlangt einen frischen Tipp: fertige Datei beim nächsten Tipp teilen */btn.disabled=false;btn.textContent='PDF ist fertig: jetzt teilen';btn.onclick=async()=>{try{await navigator.share({files:[file],title:'Scouting-Bericht '+t.name});}catch(x){}btn.textContent='Als PDF speichern / teilen';btn.onclick=()=>scoutPdfSave(name,cx);};return;}if(e&&e.name!=='AbortError')throw e;}}
     else{const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=fn;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(u);},4000);toast('PDF gespeichert: '+fn);}}
   catch(e){toast(navigator.onLine?'PDF konnte nicht erstellt werden':'Für das erste PDF ist einmal Internet nötig');}
   if(btn){btn.disabled=false;btn.textContent='Als PDF speichern / teilen';}
