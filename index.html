@@ -720,7 +720,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='54';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='55';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -3227,18 +3227,15 @@ function prevSeasonCoverage(){const prev=prevSeason(seasonNow()),rec=pdb().seaso
   if(names.length<3)return{known:false,n:names.length,have:0,prev};const all=rec?[...Object.values(rec.auto||{}),...Object.values(rec.players||{})]:[];
   const have=names.filter(n=>all.some(q=>samePlayer(q.name,n))).length;return{known:true,n:names.length,have,prev};}
 function oppFindHTML(name){
-  const inLeague=leagueTable().some(x=>matchTeam(x.name,name));const cov=prevSeasonCoverage(),needPrev=!cov.known||cov.have<cov.n/2;
-  if(inLeague&&!needPrev)return '';const e=oppEntry(name)||{},url=e.url||'',cur=seasonNow();
-  const q=encodeURIComponent('site:handball.net/team "'+name+'"');
-  const curUrl=hbTeamSeasonUrl(url,cur,true);
+  if(leagueTable().some(x=>matchTeam(x.name,name)))return '';const e=oppEntry(name)||{},url=e.url||'',cur=seasonNow();
+  const q=encodeURIComponent('site:handball.net/team "'+name+'"'),curUrl=hbTeamSeasonUrl(url,cur,true);
   return `<div class="oppfind"><div class="label"><span>Spielberichte von ${esc(name)} auf handball.net</span></div>
-    <div class="pending">${inLeague?'':'Dieser Gegner spielt nicht in unserer Liga, deshalb hat die App noch keine Daten. '}${needPrev?(cov.known?`Für ${cov.n-cov.have} von ${cov.n} Spielern liegen keine Werte aus ${esc(cov.prev)} vor. `:`Vorjahreswerte lassen sich erst prüfen, wenn Spielberichte eingelesen sind. `):''}handball.net lässt keine automatische Suche zu, mit diesen Links geht es aber schnell:</div>
+    <div class="pending">Dieser Gegner spielt nicht in unserer Liga, deshalb hat die App noch keine Daten. handball.net lässt keine automatische Suche zu, mit diesen Links geht es aber schnell:</div>
     <div class="row"><a class="tool linkbtn2" href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">1. Teamseite suchen</a>
-      ${curUrl&&!inLeague?`<a class="tool linkbtn2" href="${esc(curUrl)}" target="_blank" rel="noopener">Teamseite ${esc(cur)}</a>`:''}
-      ${needPrev?`<a class="tool linkbtn2" href="https://www.google.com/search?q=${encodeURIComponent('site:handball.net "'+name+'" '+cov.prev)}" target="_blank" rel="noopener">Vorsaison ${esc(cov.prev)} suchen</a>`:''}</div>
+      ${curUrl?`<a class="tool linkbtn2" href="${esc(curUrl)}" target="_blank" rel="noopener">Teamseite öffnen</a>`:''}</div>
     <div class="form"><label>2. Link der Teamseite hier einfügen<input id="of_url" type="url" value="${esc(url)}" placeholder="https://www.handball.net/team/…"></label></div>
-    <ol class="plan small"><li>Auf der Teamseite bei den gespielten Spielen jeweils das Spiel öffnen und den <b>Spielbericht</b> als PDF laden.${needPrev?` <b>Vorsaison:</b> auf der Teamseite oben in der Saisonauswahl ${esc(cov.prev)} wählen (handball.net übernimmt die Saison nicht aus dem Link). Hieß das Team letzte Saison anders oder spielte in einer anderen Altersklasse, hilft „Vorsaison suchen“.`:''}</li>
-      <li>Alle PDFs auf einmal unten bei <b>Gegner-Scouting</b> einlesen. Berichte aus der Vorsaison landen dabei auch in der Spielerdatenbank.</li></ol></div>`;}
+    <ol class="plan small"><li>Auf der Teamseite bei den gespielten Spielen jeweils das Spiel öffnen und den <b>Spielbericht</b> als PDF laden.</li>
+      <li>Alle PDFs auf einmal unten bei <b>Gegner-Scouting</b> einlesen.</li></ol></div>`;}
 
 /* Spieldaten aus dem Spielplan übernehmen */
 function nextGameVs(name){
