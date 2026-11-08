@@ -421,6 +421,11 @@ td.strong{font-weight:700;color:var(--ink)}
 .repchart .rc-lab{font-size:11px;fill:var(--muted)}
 .find.rep-h{border-left:4px solid var(--att)}.find.rep-g{border-left:4px solid var(--def)}
 .find small{font-weight:500;color:var(--muted)}
+
+.prog{background:none;border:1px dashed var(--line);border-radius:999px;padding:2px 8px;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.prog:hover{color:var(--att);border-color:var(--att)}
+.probbar{display:flex;height:14px;border-radius:999px;overflow:hidden;background:var(--surface-2)}
+.probbar .ph{background:var(--att)}.probbar .pd{background:var(--line)}.probbar .pa{background:var(--def)}
 </style>
 
 </head>
@@ -599,7 +604,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='38';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='39';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1397,7 +1402,9 @@ function renderPrep(){
   </section>
   </div><div class="pcol">
   <section class="card"><h2 class="ch">${logoImg(c.nameG,'md')}Gegner${['Gegner','Beispielgegner'].includes(c.nameG)?'':': '+esc(c.nameG)}${(g.typ||'liga')!=='liga'?` <span class="st diff">${TYP_LABEL[g.typ]}</span>`:''}${(()=>{const e=oppEntry(c.nameG);return e&&okUrl(e.url)?' '+linkBtn(e.url,'Teamspielplan öffnen','inline'):'';})()}</h2>
-    ${oppSelectHTML()}${oppInfoHTML()}
+    ${oppSelectHTML()}${oppInfoHTML()}${(()=>{if((g.typ||'liga')!=='liga'||['Gegner','Beispielgegner'].includes(c.nameG))return '';const ng=nextGameVs(c.nameG);if(!ng)return '';const p=progFor(progModel(),ng.home,ng.away);if(!p)return '';
+      const us=isOurTeam(ng.home)?'h':'a',win=us==='h'?p.pH:p.pA,lose=us==='h'?p.pA:p.pH;
+      return `<div class="find ${win>=.6?'good':lose>=.6?'warn':'info'}"><span><b>Prognose ${esc(ng.home)} – ${esc(ng.away)}: ≈ ${progShort(p)}</b> · Sieg für uns ${pctR(win)}, Unentschieden ${pctR(p.pD)}, Niederlage ${pctR(lose)}. <button class="mini" data-prog="${esc(ng.home+'|'+ng.away)}">Details</button></span></div>`;})()}
     <div class="label"><span>Abwehrsystem</span></div>
     <div class="radio">${DEF_SYS.map(x=>`<label><input type="radio" name="g_abw" value="${x}" ${g.abwehr===x?'checked':''}> ${x}</label>`).join('')}</div>
     <div class="form"><label>Torwart (Nr.)<input id="g_tw" value="${esc(g.torwart)}" inputmode="numeric"></label></div>
@@ -2440,7 +2447,7 @@ function scheduleHTML(){
         :`<span class="pending">${r.live?'läuft':r.stale?'Ergebnis fehlt':r.finished?'kein Bericht':'offen'}</span>`;
       h+=r.guess&&!r.rep?`<tr class="guess"><td class="num">${rd}</td><td colspan="5" class="pending">Spiel ${esc(String(r.order).padStart(2,'0'))} · Spielnummer ${esc(r.code)} · Paarung noch unbekannt</td><td>${rep}</td></tr>`
         :`<tr class="${us?'ours':''}${r.date&&!r.finished&&new Date(r.date)>now&&!gr.label?' future':''}"><td class="num">${r.sk&&!r.cup?`<select class="mini stsel" data-setrd="${esc(r.sk)}" aria-label="Spieltag">${['',...Array.from({length:(L.rounds&&L.rounds.total)||18},(_,k)=>k+1)].map(v=>`<option value="${v}"${(rd||'')===v?' selected':''}>${v||'–'}</option>`).join('')}</select>`:(rd||'–')}${r.cup?' <span class="st">Pokal</span>':''}</td><td class="num">${r.date?esc(gameDate(r.date)):esc(r.datum||'')}</td><td>${logoImg(r.home,'sm')}${esc(r.home||'')}</td><td>${logoImg(r.away,'sm')}${esc(r.away||'')}</td>
-          <td class="r num ${out}">${res}${r.live?' <span class="st diff">läuft</span>':''}${r.diff?` <span class="st diff" title="${esc(r.diff)}">≠</span>`:''}</td><td class="r num">${r.h1?esc(r.h1):''}</td><td><span class="lastc">${rep}${r.sk?`<button class="mini x" data-delsk="${esc(r.sk)}" aria-label="Termin löschen" title="Termin löschen">×</button>`:''}</span></td></tr>`;}}
+          <td class="r num ${out}">${res}${!res&&!r.finished&&!r.cup&&!r.live&&r.home&&r.away?(()=>{const p=progFor(progModel(),r.home,r.away);return p?`<button class="prog" data-prog="${esc(r.home+'|'+r.away)}" title="Prognose: Sieg Heim ${pctR(p.pH)}, Unentschieden ${pctR(p.pD)}, Sieg Gast ${pctR(p.pA)}">≈ ${progShort(p)}</button>`:'';})():''}${r.live?' <span class="st diff">läuft</span>':''}${r.diff?` <span class="st diff" title="${esc(r.diff)}">≠</span>`:''}</td><td class="r num">${r.h1?esc(r.h1):''}</td><td><span class="lastc">${rep}${r.sk?`<button class="mini x" data-delsk="${esc(r.sk)}" aria-label="Termin löschen" title="Termin löschen">×</button>`:''}</span></td></tr>`;}}
   h+=`</tbody></table></div><div class="pending">Termine und Ergebnisse stammen aus gesicherten handball.net-Seiten, dem eingefügten Teamspielplan und eingelesenen Spielberichten. Den kompletten Spielplan holst du unter <b>Daten holen → Spielplan-Text einfügen</b>: auf der Teamseite alle Spiele markieren und kopieren, bei mehreren Seiten jede Seite nacheinander. ≠ markiert ein Spiel, bei dem Spielbericht und handball.net nicht übereinstimmen.</div></section>`;
   return h;
 }
@@ -2779,6 +2786,57 @@ function repChartSVG(r,A){
     <text x="${pad}" y="12" class="rc-lab">${esc(r.heim.team)} vorn</text><text x="${pad}" y="${Hh-4}" class="rc-lab">${esc(r.gast.team)} vorn</text><text x="${X(ht)+4}" y="${Hh-4}" class="rc-lab">Halbzeit</text>
     <path d="${path}" class="rc-line"/></svg>`;
 }
+
+/* ---------- Prognose: Angriffs-/Abwehrstärke aus den Ergebnissen der Saison, Heimvorteil, Streuung aus den bisherigen Abweichungen ---------- */
+function progMatches(){const out=[],seen=new Set();for(const t of leagueTable())for(const g of t.games){if(g.hg!=='heim')continue;const k=normT(t.name)+'|'+normT(g.gegner)+'|'+g.dk;if(seen.has(k))continue;seen.add(k);out.push({home:t.name,away:g.gegner,hs:g.gf,as:g.ga,dk:g.dk||''});}
+  return out.sort((a,b)=>a.dk.localeCompare(b.dk));}
+function progFit(M){
+  if(M.length<3)return null;const teams=new Map(),key=n=>{for(const k of teams.keys())if(matchTeam(k,n))return k;teams.set(n,{att:1,def:1,n:0,gf:0,ga:0});return n;};
+  const ms=M.map(m=>({...m,h:key(m.home),a:key(m.away)}));
+  const mu=ms.reduce((s,m)=>s+m.hs+m.as,0)/(2*ms.length),HS=ms.reduce((s,m)=>s+m.hs,0),AS=ms.reduce((s,m)=>s+m.as,0);
+  const hadv=Math.min(1.25,Math.max(0.9,(HS+mu*6)/(AS+mu*6))),hf=Math.sqrt(hadv),K=2;
+  for(const m of ms){const H=teams.get(m.h),A=teams.get(m.a);H.n++;A.n++;H.gf+=m.hs;H.ga+=m.as;A.gf+=m.as;A.ga+=m.hs;}
+  for(let it=0;it<25;it++)for(const [k,T] of teams){let ef=0,ea=0;for(const m of ms){if(m.h===k){const O=teams.get(m.a);ef+=mu*hf*O.def;ea+=mu/hf*O.att;}else if(m.a===k){const O=teams.get(m.h);ef+=mu/hf*O.def;ea+=mu*hf*O.att;}}
+    T.att=(T.gf+K*mu)/(ef+K*mu);T.def=(T.ga+K*mu)/(ea+K*mu);}
+  const pred=(h,a)=>({eh:mu*hf*teams.get(h).att*teams.get(a).def,ea:mu/hf*teams.get(a).att*teams.get(h).def});
+  let se=0;for(const m of ms){const p=pred(m.h,m.a);se+=Math.pow((m.hs-m.as)-(p.eh-p.ea),2);}
+  const sigma=Math.max(3.5,ms.length>=6?Math.sqrt(se/ms.length)*1.15:6);
+  return{teams,mu,hadv,sigma,n:ms.length,find:n=>{for(const k of teams.keys())if(matchTeam(k,n))return k;return null;},pred};
+}
+const normCdf=x=>{const t=1/(1+0.2316419*Math.abs(x)),d=0.3989423*Math.exp(-x*x/2),p=d*t*(0.3193815+t*(-0.3565638+t*(1.781478+t*(-1.821256+t*1.330274))));return x>0?1-p:p;};
+function progFor(F,home,away){if(!F)return null;const h=F.find(home),a=F.find(away);if(!h||!a||h===a)return null;const p=F.pred(h,a),d=p.eh-p.ea,s=F.sigma;
+  const pD=normCdf((0.5-d)/s)-normCdf((-0.5-d)/s),pH=1-normCdf((0.5-d)/s),pA=normCdf((-0.5-d)/s);
+  return{eh:p.eh,ea:p.ea,d,pH,pD,pA,h,a,nh:F.teams.get(h).n,na:F.teams.get(a).n,F};}
+let progCache=null;
+function progModel(){const M=progMatches(),sig=M.length+'|'+M.map(m=>m.hs+':'+m.as).join(',').length;if(progCache&&progCache.sig===sig)return progCache.F;
+  const F=progFit(M);if(F){/* Rückblick: jedes Spiel nur mit den Ergebnissen davor vorhersagen */let ok=0,n=0,ad=0;
+    for(let i=0;i<M.length;i++){const prior=M.filter((x,j)=>j!==i&&x.dk<M[i].dk);if(prior.length<6)continue;const f=progFit(prior),p=progFor(f,M[i].home,M[i].away);if(!p||p.nh<2||p.na<2)continue;
+      const tip=p.pH>=p.pA&&p.pH>=p.pD?1:p.pA>=p.pD?-1:0,res=Math.sign(M[i].hs-M[i].as);n++;if(tip===res)ok++;ad+=Math.abs((M[i].hs-M[i].as)-p.d);}
+    F.back={n,ok,ad:n?ad/n:null};}
+  progCache={sig,F};return F;}
+const pctR=v=>Math.round(v*100)+' %';
+function progShort(p){if(!p)return '';const tip=p.pH>=p.pA?'heim':'gast';return `${Math.round(p.eh)}:${Math.round(p.ea)}`;}
+function progSheet(home,away){
+  const F=progModel(),p=progFor(F,home,away);if(!p){toast('Für diese Paarung gibt es noch zu wenig Ergebnisse');return;}
+  const T=F.teams,Th=T.get(p.h),Ta=T.get(p.a),f1x=v=>f1(v),f2=v=>v.toFixed(2).replace('.',',');
+  const h2h=progMatches().filter(m=>(matchTeam(m.home,home)&&matchTeam(m.away,away))||(matchTeam(m.home,away)&&matchTeam(m.away,home)));
+  const form=n=>{const L=progMatches().filter(m=>matchTeam(m.home,n)||matchTeam(m.away,n)).slice(-3);return L.map(m=>{const us=matchTeam(m.home,n)?m.hs:m.as,th=matchTeam(m.home,n)?m.as:m.hs;return `<span class="st ${us>th?'ok':us<th?'miss':''}">${us}:${th}</span>`;}).join(' ')||'–';};
+  const row=(lab,a,b)=>`<tr><td>${lab}</td><td class="r num">${a}</td><td class="r num">${b}</td></tr>`;
+  let h=head(`Prognose: ${esc(home)} – ${esc(away)}`);
+  h+=`<div class="facts"><div class="fact"><small>Erwartetes Ergebnis</small><b>${Math.round(p.eh)}:${Math.round(p.ea)}</b></div>
+    <div class="fact"><small>Sieg ${esc(home)}</small><b>${pctR(p.pH)}</b></div><div class="fact"><small>Unentschieden</small><b>${pctR(p.pD)}</b></div><div class="fact"><small>Sieg ${esc(away)}</small><b>${pctR(p.pA)}</b></div></div>
+    <div class="probbar" aria-hidden="true"><span class="ph" style="width:${p.pH*100}%"></span><span class="pd" style="width:${p.pD*100}%"></span><span class="pa" style="width:${p.pA*100}%"></span></div>
+    <h3>Grundlage</h3><div class="tw"><table><thead><tr><th></th><th class="r">${esc(home)}</th><th class="r">${esc(away)}</th></tr></thead><tbody>
+      ${row('Spiele in der Wertung',Th.n,Ta.n)}${row('Ø Tore',Th.n?f1x(Th.gf/Th.n):'–',Ta.n?f1x(Ta.gf/Ta.n):'–')}${row('Ø Gegentore',Th.n?f1x(Th.ga/Th.n):'–',Ta.n?f1x(Ta.ga/Ta.n):'–')}
+      ${row('Angriffsstärke (1,00 = Liga-Schnitt, gegnerbereinigt)',f2(Th.att),f2(Ta.att))}${row('Abwehr (unter 1,00 = weniger Gegentore als Schnitt)',f2(Th.def),f2(Ta.def))}
+      ${row('Letzte Spiele',form(home),form(away))}</tbody></table></div>
+    ${h2h.length?`<div class="pending"><b>Bisherige Duelle dieser Saison:</b> ${h2h.map(m=>`${esc(m.home)} ${m.hs}:${m.as} ${esc(m.away)}`).join(' · ')}</div>`:''}
+    <div class="find info"><span><b>So entsteht die Prognose.</b> Aus allen ${F.n} Ergebnissen der Saison wird für jedes Team eine Angriffs- und Abwehrstärke berechnet, bereinigt um die Stärke der Gegner. Dazu kommt der Heimvorteil der Liga (Heimteams werfen ${f1x((F.hadv-1)*100)} % mehr Tore). Bei wenigen Spielen werden die Werte zum Liga-Schnitt hin gedämpft. Die Wahrscheinlichkeiten ergeben sich aus der bisherigen Streuung (± ${f1x(F.sigma)} Tore).</span></div>
+    ${F.back&&F.back.n?`<div class="find ${F.back.ok/F.back.n>=.6?'good':'info'}"><span><b>Bisherige Trefferquote:</b> ${F.back.ok} von ${F.back.n} Spielen richtig getippt (${pct(F.back.ok,F.back.n)}), jeweils nur mit den Ergebnissen davor berechnet. Die Tordifferenz lag im Schnitt ${f1x(F.back.ad)} Tore daneben.</span></div>`:'<p class="pending">Trefferquote: noch zu wenige Spiele für einen Rückblick.</p>'}
+    <p class="pending">Nicht enthalten: Aufstellung, Ausfälle, Tagesform. Fehlt ein Schlüsselspieler, siehst du das nach dem Spiel in der Analyse des Spielberichts.</p>`;
+  openSheet(h);
+}
+document.addEventListener('click',ev=>{const b=ev.target.closest&&ev.target.closest('[data-prog]');if(!b)return;ev.preventDefault();const [h,a]=b.dataset.prog.split('|');progSheet(h,a);});
 
 /* Spieldaten aus dem Spielplan übernehmen */
 function nextGameVs(name){
