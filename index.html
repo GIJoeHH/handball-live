@@ -437,6 +437,7 @@ td.strong{font-weight:700;color:var(--ink)}
 }
 
 .check.small{font-size:13px;font-weight:500;margin-left:auto}
+.plan.small{font-size:13px;margin:4px 0}
 </style>
 
 </head>
@@ -615,7 +616,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='49';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='50';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1431,7 +1432,7 @@ function renderPrep(){
   </section>
   </div><div class="pcol">
   <section class="card"><h2 class="ch">${logoImg(c.nameG,'md')}Gegner${['Gegner','Beispielgegner'].includes(c.nameG)?'':': '+esc(c.nameG)}${(g.typ||'liga')!=='liga'?` <span class="st diff">${TYP_LABEL[g.typ]}</span>`:''}${(()=>{const e=oppEntry(c.nameG);return e&&okUrl(e.url)?' '+linkBtn(e.url,'Teamspielplan öffnen','inline'):'';})()}${!['Gegner','Beispielgegner'].includes(c.nameG)&&leagueTable().some(x=>matchTeam(x.name,c.nameG))?` <button class="tool primary inline" data-screp="${esc(c.nameG)}" data-prep>Scouting-Bericht (PDF)</button>`:''}</h2>
-    ${oppSelectHTML()}${oppInfoHTML()}${['Gegner','Beispielgegner'].includes(c.nameG)?'':stoppedGamesHTML(c.nameG)}${(()=>{if((g.typ||'liga')!=='liga'||['Gegner','Beispielgegner'].includes(c.nameG))return '';const ng=nextGameVs(c.nameG);if(!ng)return '';const p=progFor(progModel(),ng.home,ng.away);if(!p)return '';
+    ${oppSelectHTML()}${oppInfoHTML()}${['Gegner','Beispielgegner'].includes(c.nameG)?'':stoppedGamesHTML(c.nameG)+oppFindHTML(c.nameG)}${(()=>{if((g.typ||'liga')!=='liga'||['Gegner','Beispielgegner'].includes(c.nameG))return '';const ng=nextGameVs(c.nameG);if(!ng)return '';const p=progFor(progModel(),ng.home,ng.away);if(!p)return '';
       const us=isOurTeam(ng.home)?'h':'a',win=us==='h'?p.pH:p.pA,lose=us==='h'?p.pA:p.pH;
       return `<div class="find ${win>=.6?'good':lose>=.6?'warn':'info'}"><span><b>Prognose ${esc(ng.home)} – ${esc(ng.away)}: ≈ ${progShort(p)}</b> · Sieg für uns ${pctR(win)}, Unentschieden ${pctR(p.pD)}, Niederlage ${pctR(lose)}. <button class="mini" data-prog="${esc(ng.home+'|'+ng.away)}">Details</button></span></div>`;})()}
     <div class="label"><span>Abwehrsystem</span></div>
@@ -1462,6 +1463,7 @@ function renderPrep(){
   document.querySelectorAll('[data-kdel]').forEach(b=>b.onclick=()=>{g.key.splice(+b.dataset.kdel,1);save();renderPrep();});
   $('g_keyadd').onclick=()=>{g.key.push({nr:null,note:''});save();renderPrep();const i=$('k_nr_'+(g.key.length-1));if(i)i.focus();};
   bindOppSelect();
+  if($('of_url'))$('of_url').onchange=()=>{const v=$('of_url').value.trim();if(v&&!okUrl(v)){toast('Bitte den vollständigen Link mit https:// einfügen');return;}oppEnsure(c.nameG).url=v;save();toast(v?'Teamseite gespeichert':'Link entfernt');rePrep();};
   $('g_plays').onclick=()=>settings('plays');$('g_editRoster').onclick=()=>settings('team');
   bindScout();
 }
@@ -1731,6 +1733,12 @@ function sideFor(R,team){
   const t=new Set(tokT(team)),h=tokT(R.meta.heim).filter(x=>t.has(x)).length,g=tokT(R.meta.gast).filter(x=>t.has(x)).length;
   return h>g?'heim':g>h?'gast':null;
 }
+/* Gehört ein Bericht zu unserer Liga und Saison? Spielnummer-Präfix (z. B. 2627HAOLCJMA) wie bei den vorhandenen Ligaberichten, sonst Spielklasse; ohne Ligadaten nur bei Ligaspielen */
+function sameLeague(R){const nr=(R.meta&&R.meta.nr)||'',pre=nr.replace(/\d{4}$/,''),L=Object.values(leagueState().reports||{});
+  if(seasonOfDk(dateKey(R.meta&&R.meta.datum))!==seasonNow())return false;
+  const pres=new Set(L.map(r=>String(r.nr||'').replace(/\d{4}$/,'')).filter(x=>x.length>=6));if(pres.size&&pre.length>=6)return pres.has(pre);
+  const kl=normT(R.meta&&R.meta.klasse||''),kls=new Set(L.map(r=>normT(r.klasse||'')).filter(Boolean));if(kls.size&&kl)return kls.has(kl);
+  return (S.game.typ||'liga')==='liga'&&leagueTable().some(t=>matchTeam(t.name,R.meta.heim)||matchTeam(t.name,R.meta.gast));}
 function addScoutReports(list,team){
   const sc=scoutState();sc.team=team;let added=0,skipped=0,dup=0;
   for(const R of list){const side=sideFor(R,team);if(!side){skipped++;continue;}const r=repSummary(R,side);
@@ -1796,7 +1804,7 @@ function bindScout(){
     for(let i=0;i<files.length;i++){st.textContent=`Lese Bericht ${i+1} von ${files.length} …`;
       try{const R=await readPdf(files[i]);if(!R.roster.heim.length&&!R.roster.gast.length)throw new Error('kein Kader gefunden');parsed.push(R);}catch(e){errs.push(files[i].name+': '+(e.message||e));}}
     if(!parsed.length){st.innerHTML='<span class="err">'+esc(errs.join(' · ')||'Keine Berichte gelesen')+'</span>';return;}
-    const finish=team=>{parsed.forEach(R=>{if(!isCup(R))addToLeague(R);});const r=addScoutReports(parsed,team);save();renderPrep();
+    const finish=team=>{parsed.forEach(R=>{if(!isCup(R)&&sameLeague(R))addToLeague(R);});const r=addScoutReports(parsed,team);save();renderPrep();
       toast(`${r.added} Bericht${r.added===1?'':'e'} übernommen${r.dup?', '+r.dup+' doppelt':''}${r.skipped?', '+r.skipped+' ohne '+team:''}`);};
     if(sc.team){finish(sc.team);return;}
     const cnt={};const all=[...parsed.flatMap(R=>[R.meta.heim,R.meta.gast])];for(const t of all)if(t)cnt[normT(t)]=(cnt[normT(t)]||{n:0,name:t}),cnt[normT(t)].n++;
@@ -3090,6 +3098,27 @@ async function scoutPdfSave(name,cx){
   if(btn){btn.disabled=false;btn.textContent='Als PDF speichern / teilen';}
 }
 
+/* ---------- Gegner außerhalb der Liga (z. B. Pokal): Wege zu den Spielberichten auf handball.net ---------- */
+const seasonCode=s=>s.slice(2,4)+s.slice(5,7);
+function hbTeamSeasonUrl(url,season,keepPhase){if(!okUrl(url)||!/handball\.net\/team\/\d+/.test(url))return '';let u=url.replace(/&amp;/g,'&');const c=seasonCode(season);
+  u=/[?&]season_id=\d+/.test(u)?u.replace(/([?&]season_id=)\d+/,'$1'+c):u+(u.includes('?')?'&':'?')+'season_id='+c;if(!keepPhase)u=u.replace(/[?&]phaseId=\d+/,'').replace(/\?&/,'?');return u;}
+function prevSeasonCoverage(){const prev=prevSeason(seasonNow()),rec=pdb().seasons[prev],sc=scoutState(),fromSc=sc&&sc.team&&matchTeam(sc.team,S.cfg.nameG)?sc.reports.flatMap(r=>(r.roster||[]).map(p=>p.name)):[],names=[...new Set([...(S.cfg.rosterG||[]).map(p=>p.name),...fromSc].filter(n=>n&&ptoks(n).length>=2).map(n=>n.trim()))];
+  if(names.length<3)return{known:false,n:names.length,have:0,prev};const all=rec?[...Object.values(rec.auto||{}),...Object.values(rec.players||{})]:[];
+  const have=names.filter(n=>all.some(q=>samePlayer(q.name,n))).length;return{known:true,n:names.length,have,prev};}
+function oppFindHTML(name){
+  const inLeague=leagueTable().some(x=>matchTeam(x.name,name));const cov=prevSeasonCoverage(),needPrev=!cov.known||cov.have<cov.n/2;
+  if(inLeague&&!needPrev)return '';const e=oppEntry(name)||{},url=e.url||'',cur=seasonNow();
+  const q=encodeURIComponent('site:handball.net/team "'+name+'"');
+  const curUrl=hbTeamSeasonUrl(url,cur,true),prevUrl=hbTeamSeasonUrl(url,cov.prev,false);
+  return `<div class="oppfind"><div class="label"><span>Spielberichte von ${esc(name)} auf handball.net</span></div>
+    <div class="pending">${inLeague?'':'Dieser Gegner spielt nicht in unserer Liga, deshalb hat die App noch keine Daten. '}${needPrev?(cov.known?`Für ${cov.n-cov.have} von ${cov.n} Spielern liegen keine Werte aus ${esc(cov.prev)} vor. `:`Vorjahreswerte lassen sich erst prüfen, wenn Spielberichte eingelesen sind. `):''}handball.net lässt keine automatische Suche zu, mit diesen Links geht es aber schnell:</div>
+    <div class="row"><a class="tool linkbtn2" href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">1. Teamseite suchen</a>
+      ${curUrl&&!inLeague?`<a class="tool linkbtn2" href="${esc(curUrl)}" target="_blank" rel="noopener">Teamseite ${esc(cur)}</a>`:''}
+      ${prevUrl&&needPrev?`<a class="tool linkbtn2" href="${esc(prevUrl)}" target="_blank" rel="noopener">Teamseite Vorsaison ${esc(cov.prev)}</a>`:''}</div>
+    <div class="form"><label>2. Link der Teamseite hier einfügen<input id="of_url" type="url" value="${esc(url)}" placeholder="https://www.handball.net/team/…"></label></div>
+    <ol class="plan small"><li>Auf der Teamseite bei den gespielten Spielen jeweils das Spiel öffnen und den <b>Spielbericht</b> als PDF laden.${needPrev?` Für die Vorsaison den Link „Teamseite Vorsaison“ nehmen. Findet handball.net dort nichts, auf der Teamseite oben die Saison ${esc(cov.prev)} wählen.`:''}</li>
+      <li>Alle PDFs auf einmal unten bei <b>Gegner-Scouting</b> einlesen. Berichte aus der Vorsaison landen dabei auch in der Spielerdatenbank.</li></ol></div>`;}
+
 /* Spieldaten aus dem Spielplan übernehmen */
 function nextGameVs(name){
   const lim=Date.now()-3*36e5,L=leagueState();
@@ -3184,14 +3213,21 @@ function pdbRefresh(){
         const q=A[k]||(A[k]={name:p.name,team:x.team,nr:p.nr,spiele:0,tore:0,best:0,dk:''});
         q.spiele++;q.tore+=p.tore||0;q.best=Math.max(q.best,p.tore||0);if((r.dk||'')>=q.dk){q.dk=r.dk||'';q.nr=p.nr;}}}}
   for(const s in per){const rec=seasonRec(s);const old=JSON.stringify(rec.auto||{}),nw=JSON.stringify(per[s]);if(old!==nw){rec.auto=per[s];rec.autoAt=Date.now();changed=true;}}
+  /* Berichte aus dem Gegner-Scouting (z. B. Pokalgegner, Vorsaison): dauerhaft sammeln, jeden Bericht nur einmal zählen */
+  for(const st of states){const sc=(st||{}).scout;if(!sc||!sc.reports)continue;
+    for(const r of sc.reports){const s=seasonOfDk(r.dk);if(!s||!r.team||!r.nr||seen.has(r.nr))continue;const rec=seasonRec(s);rec.scout=rec.scout||{};rec.scoutSeen=rec.scoutSeen||[];
+      if(rec.scoutSeen.includes(r.nr))continue;rec.scoutSeen.push(r.nr);changed=true;
+      for(const p of r.roster||[]){if(!p.name)continue;const k=pkey(p.name)+'|'+normT(r.team);const q=rec.scout[k]||(rec.scout[k]={name:p.name,team:r.team,nr:p.nr,spiele:0,tore:0,best:0,dk:''});
+        q.spiele++;q.tore+=p.tore||0;q.best=Math.max(q.best,p.tore||0);if((r.dk||'')>=q.dk){q.dk=r.dk||'';q.nr=p.nr;}}}}
   if(changed)pdbSave();
 }
 /* Wer spielt in dieser Saison wirklich in der Liga? Nur diese Spieler bekommen ihre Vorjahreswerte angezeigt */
-function playsThisSeason(name){const rec=pdb().seasons[seasonNow()];if(!rec)return null;return Object.values(rec.auto||{}).filter(q=>samePlayer(q.name,name));}
+function playsThisSeason(name){const rec=pdb().seasons[seasonNow()];if(!rec)return null;return [...Object.values(rec.auto||{}),...Object.values(rec.scout||{}).map(q=>({...q,src:'Spielberichte (Scouting)'}))].filter(q=>samePlayer(q.name,name));}
 function playerHistory(name){const D=pdb(),now=seasonNow(),out=[];
   for(const s of Object.keys(D.seasons).sort().reverse()){if(s===now)continue;const rec=D.seasons[s];
     const fl=x=>{const t=ptoksI(x);return t[0]+' '+t[t.length-1];},als=q=>fl(q.name)===fl(name)?'':` · als „${q.name}“`;
     for(const q of Object.values(rec.auto||{}))if(samePlayer(q.name,name))out.push({season:s,...q,src:'Spielberichte'+als(q)});
+    for(const q of Object.values(rec.scout||{}))if(samePlayer(q.name,name)&&!Object.values(rec.auto||{}).some(a=>samePlayer(a.name,q.name)&&normT(a.team)===normT(q.team)))out.push({season:s,...q,src:'Spielberichte (Scouting)'+als(q)});
     for(const [k,q] of Object.entries(rec.players||{}))if(samePlayer(q.name,name,ourClub(q.team)))out.push({season:s,...q,src:(q.src||'Tabelle')+als(q),_k:k});}
   return out;}
 const avgS=(t,g)=>g?(t/g).toFixed(1).replace('.',','):'–';
@@ -3201,8 +3237,8 @@ function playerRowsHTML(L,withSeason){return `<div class="tw"><table><thead><tr>
 function openPlayer(name,team){
   pdbRefresh();const now=seasonNow(),cur=playsThisSeason(name)||[],hist=playerHistory(name);
   let h=head(esc(name));
-  h+=`<h3>Saison ${esc(now)} · Liga laut Spielberichten</h3>`+(cur.length?playerRowsHTML(cur.map(q=>({...q,src:'Spielberichte'})),false):'<p class="pending">In dieser Saison noch in keinem eingelesenen Spielbericht der Liga.</p>');
-  if(!cur.length)h+=`<div class="find info"><span>Werte aus früheren Saisons werden nur angezeigt, wenn der Spieler in dieser Saison in der Liga spielt, also in einem Spielbericht dieser Saison steht.${hist.length?` Für diesen Namen ${hist.length===1?'liegt 1 älterer Eintrag':'liegen '+hist.length+' ältere Einträge'} vor.`:''}</span></div>`;
+  h+=`<h3>Saison ${esc(now)} laut Spielberichten</h3>`+(cur.length?playerRowsHTML(cur.map(q=>({...q,src:q.src||'Spielberichte'})),false):'<p class="pending">In dieser Saison noch in keinem eingelesenen Spielbericht der Liga.</p>');
+  if(!cur.length)h+=`<div class="find info"><span>Werte aus früheren Saisons werden nur angezeigt, wenn der Spieler in dieser Saison spielt, also in einem eingelesenen Spielbericht dieser Saison steht (Liga oder Gegner-Scouting).${hist.length?` Für diesen Namen ${hist.length===1?'liegt 1 älterer Eintrag':'liegen '+hist.length+' ältere Einträge'} vor.`:''}</span></div>`;
   else h+=`<h3>Frühere Saisons</h3>`+(hist.length?playerRowsHTML(hist,true):`<p class="pending">Keine älteren Werte in der Spielerdatenbank.${cur.every(q=>!q.tore)?' Torhüter fehlen in Torschützen-Tabellen meistens, weil sie keine Tore werfen.':''} Tabellen früherer Saisons lassen sich unter Einstellungen → Spielerdatenbank einlesen.</p>`);
   h+=`<p class="pending">Zuordnung über den Namen: Vor- und Nachname, Zweitnamen egal. Bei eurem Verein werden Kurzformen wie „Maxi“ für Maximilian oder „Finn H.“ erkannt und mit „als …“ gekennzeichnet. Falsche Einträge aus Tabellen lassen sich mit × löschen. Alle Werte bleiben auf diesem Gerät und in eurer Sync-Datei.</p>`;
   openSheet(h);
@@ -3217,6 +3253,7 @@ function pdbMerge(rem,mode){if(!rem||!rem.seasons)return;const D=pdb();
   for(const s in rem.seasons){const r=rem.seasons[s],l=seasonRec(s);
     if(r.closed&&!l.closed){l.closed=true;l.archivedAt=r.archivedAt||Date.now();}
     if((r.autoAt||0)>(l.autoAt||0)&&r.auto){l.auto=r.auto;l.autoAt=r.autoAt;}
+    if(r.scout){l.scout=l.scout||{};l.scoutSeen=[...new Set([...(l.scoutSeen||[]),...(r.scoutSeen||[])])];for(const k in r.scout){const a=l.scout[k],b=r.scout[k];if(!a||(b.spiele||0)>(a.spiele||0))l.scout[k]=b;}}
     for(const k in r.players||{}){const a=l.players[k],b=r.players[k];if(!a||(b.upd||0)>(a.upd||0))l.players[k]=b;}
     for(const t of r.tables||[]){l.tables=l.tables||[];const i=l.tables.findIndex(x=>x.src===t.src);if(i<0)l.tables.push(t);else if((t.upd||0)>(l.tables[i].upd||0))l.tables[i]=t;}}
   pdbSave();}
