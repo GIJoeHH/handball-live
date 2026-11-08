@@ -438,6 +438,78 @@ td.strong{font-weight:700;color:var(--ink)}
 
 .check.small{font-size:13px;font-weight:500;margin-left:auto}
 .plan.small{font-size:13px;margin:4px 0}
+
+.goal .gzx rect{fill:var(--surface-2);stroke:var(--line);stroke-width:1.2;stroke-dasharray:4 3}
+.goal .gzx{cursor:pointer}.goal .gzx .gzl{font-size:12px}
+.goal .gzx.sel rect{fill:var(--warn-bg);stroke:var(--warn-line);stroke-dasharray:none}
+#goalPick{max-width:380px}
+
+/* Vollbild für die Erfassung: Kopfzeilen weg, alles enger, damit Spielzug bis Ergebnis ohne Scrollen passt */
+html.capfull body:has(#view-erfassen:not([hidden])) .nav,html.capfull body:has(#view-erfassen:not([hidden])) .demo-note,html.capfull body:has(#view-erfassen:not([hidden])) .foot{display:none!important}
+html.capfull.standalone body{padding-top:6px}
+html.capfull #view-erfassen{gap:6px}
+html.capfull #view-erfassen .board{padding:4px 8px;gap:8px}
+html.capfull #view-erfassen .score .goals{font-size:30px}
+html.capfull #view-erfassen .clock{padding:0 8px;min-width:80px}
+html.capfull #view-erfassen .possbar{gap:6px}
+html.capfull #view-erfassen .possbar .side{padding:4px 10px;min-height:0}
+html.capfull #view-erfassen .tools .tool{min-height:34px;padding:0 10px;font-size:13px}
+html.capfull #view-erfassen .card{padding:8px 10px}
+html.capfull #view-erfassen .label{margin:2px 0 4px}
+html.capfull #view-erfassen .btn{min-height:42px}
+html.capfull #view-erfassen .players .btn{min-height:48px}
+html.capfull #view-erfassen .players.small .btn{min-height:40px}
+html.capfull #view-erfassen .rcol .resgrid .btn{min-height:48px}
+html.capfull #view-erfassen .keep{min-height:38px}
+html.capfull #view-erfassen .undo{min-height:44px}
+html.capfull #view-erfassen .posrow{margin-top:2px}
+
+html.capfull #openCauses,html.capfull #openSettings,html.capfull #abortGame{display:none}
+html.capfull #view-erfassen .possbar{flex-wrap:nowrap}
+html.capfull #view-erfassen .possbar .side{flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap}
+html.capfull #view-erfassen .possbar .side .start{overflow:hidden;text-overflow:ellipsis}
+html.capfull #view-erfassen .tools{flex-wrap:nowrap;flex:0 0 auto}
+html.capfull #view-erfassen #plays{grid-template-columns:repeat(3,minmax(0,1fr))}
+html.capfull #view-erfassen #plays .btn{min-height:36px;font-size:14px;padding:2px 4px}
+html.capfull #view-erfassen .court{height:24vh;width:100%}
+html.capfull #view-erfassen #goalPick{height:21vh;width:100%;max-width:none}
+html.capfull #view-erfassen .posrow .pending{display:none}
+html.capfull #view-erfassen .posrow .btn{min-height:34px}
+html.capfull #view-erfassen #quality .btn{min-height:38px}
+html.capfull #view-erfassen .players{grid-template-columns:repeat(auto-fill,minmax(50px,1fr));gap:5px}
+html.capfull #view-erfassen .players .btn{min-height:42px}
+html.capfull #view-erfassen .players .btn b{font-size:19px}
+html.capfull #view-erfassen .players.small{grid-template-columns:repeat(auto-fill,minmax(42px,1fr))}
+html.capfull #view-erfassen .players.small .btn{min-height:34px}
+html.capfull #view-erfassen .players.small .btn b{font-size:15px}
+html.capfull #view-erfassen .players .btn small{display:none}
+html.capfull #view-erfassen .rcol .resgrid .btn{min-height:44px}
+html.capfull #view-erfassen #keepHint{display:none}
+@media (max-width:1100px){html.capfull #view-erfassen .possbar{flex-wrap:wrap}html.capfull #view-erfassen .tools{flex-wrap:wrap}}
+@media (min-height:800px){html.capfull #view-erfassen .court{height:28vh}html.capfull #view-erfassen #goalPick{height:24vh}html.capfull #view-erfassen #plays .btn{min-height:42px}html.capfull #view-erfassen .players .btn{min-height:46px}}
+.rcol .resrow{align-items:start}.rcol .resgrid{align-content:start;grid-auto-rows:auto}
+
+/* Spalte 4: Werfer / Assist, schmal und durchgehend */
+.main{grid-template-columns:minmax(0,1.05fr) minmax(150px,170px) minmax(0,1fr) minmax(0,.85fr)}
+.pcard .players{grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.pcard .players .btn{min-height:46px;padding:2px}
+.pcard .players .btn small{display:none}
+.pcard .players.small .btn{min-height:36px}
+.players .btn.sel.shot{background:#2f8a5b;border-color:#2f8a5b;color:#fff}
+.players .btn.sel.ast{background:var(--att);border-color:var(--att);color:#fff}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;vertical-align:middle;margin:0 3px 0 6px}.dot.shot{background:#2f8a5b}.dot.ast{background:var(--att)}
+#playerHint{font-size:12px;margin:-2px 0 6px}
+@media (max-width:1000px){.main{grid-template-columns:1fr 1fr}.pcol{grid-column:1 / -1}.pcard .players{grid-template-columns:repeat(auto-fill,minmax(52px,1fr))}}
+@media (max-width:640px){.main{grid-template-columns:1fr}}
+html.capfull #view-erfassen .pcard .players{grid-template-columns:repeat(3,minmax(0,1fr))}
+html.capfull #view-erfassen .pcard .players .btn{min-height:42px}
+html.capfull #view-erfassen #goalPick{height:30vh}
+html.capfull #view-erfassen #pending{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px}
+html.capfull #view-erfassen .rcol .keeprow{gap:6px}
+html.capfull #view-erfassen .rcol .resgrid{gap:6px}
+
+.pcard .players.small{grid-template-columns:repeat(4,minmax(0,1fr));gap:4px}
+.pcard .players.small .btn{min-height:34px}.pcard .players.small .btn b{font-size:15px}
 </style>
 
 </head>
@@ -498,6 +570,7 @@ window.hbHardReload=async function(){
       <button class="tool" id="openCauses">Ursachen</button>
       <button class="tool danger" id="abortGame">Spiel abbrechen</button>
       <button class="tool" id="openSettings">Einstellungen</button>
+      <button class="tool" id="fullBtn" aria-pressed="false">⛶ Vollbild</button>
     </div>
   </div>
 
@@ -515,18 +588,20 @@ window.hbHardReload=async function(){
       <div class="grid g2" id="quality"></div>
     </section>
   </div>
-  <div class="mcol">
-    <section class="card">
-      <div class="label"><span><span class="stepn">4</span>Wurfziel · optional · Sicht des Werfers</span></div>
-      <svg class="goal" id="goalPick" viewBox="0 0 300 206" role="group" aria-label="Wurfziel antippen"></svg>
-    </section>
-    <section class="card">
-      <div class="label"><span><span class="stepn">5</span><span id="playerLabel">Werfer</span></span></div>
+  <div class="mcol pcol">
+    <section class="card pcard">
+      <div class="label"><span><span class="stepn">4</span><span id="playerLabel">Werfer</span></span></div>
+      <div class="pending" id="playerHint"></div>
       <div class="grid players" id="players"></div>
       <div class="label" id="defLabel" hidden><span id="defText">Unser Abwehrspieler · optional</span></div>
       <div class="grid players small" id="defenders" hidden></div>
-      <div class="label" id="astLabel" hidden><span>Vorlage (Assist) · optional</span></div>
       <div class="grid players small" id="assists" hidden></div>
+    </section>
+  </div>
+  <div class="mcol">
+    <section class="card">
+      <div class="label"><span><span class="stepn">5</span>Wurfziel · optional · Sicht des Werfers</span></div>
+      <svg class="goal" id="goalPick" viewBox="0 0 300 206" role="group" aria-label="Wurfziel antippen"></svg>
     </section>
   </div>
   <div class="mcol rcol">
@@ -616,7 +691,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='50';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='52';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -762,14 +837,19 @@ function gridRoster(side){
 }
 /* Wurfziel im Tor (Sicht des Werfers) und Torwart */
 const GZ=['OL','OM','OR','ML','MM','MR','UL','UM','UR'];
-const GZ_LABEL={OL:'oben links',OM:'oben Mitte',OR:'oben rechts',ML:'Mitte links',MM:'Mitte',MR:'Mitte rechts',UL:'unten links',UM:'unten Mitte',UR:'unten rechts'};
+const GZX=['XOL','XO','XOR','XL','XR'];
+const GZ_LABEL={XOL:'drüber links',XO:'drüber',XOR:'drüber rechts',XL:'links vorbei',XR:'rechts vorbei',OL:'oben links',OM:'oben Mitte',OR:'oben rechts',ML:'Mitte links',MM:'Mitte',MR:'Mitte rechts',UL:'unten links',UM:'unten Mitte',UR:'unten rechts'};
 function curGK(team){let nr=null;for(const e of S.events)if(e.type==='gk'&&e.team===team)nr=e.nr;
   if(nr==null){if(team==='H'){const t=(S.cfg.start7||{}).TW;if(t!=null&&t!=='')nr=+t;else{const p=S.cfg.rosterH.find(p=>p.pos==='TW'&&p.status!=='pause');if(p)nr=p.nr;}}
     else{const t=parseInt(S.game&&S.game.torwart,10);if(!isNaN(t))nr=t;}}
   return nr;}
 function goalSVG(sel,stats){
   const X0=20,Y0=12,W=260,H=180,cw=W/3,ch=H/3;
-  let s=`<rect x="${X0-10}" y="${Y0-10}" width="${W+20}" height="${H+12}" rx="4" class="gpost"/><rect x="${X0}" y="${Y0}" width="${W}" height="${H+2}" class="gnet"/>`;
+  let s='';
+  if(!stats){/* Fehlwurf-Zonen rund ums Tor: antippen setzt das Ergebnis „Vorbei“ */
+    const Z={XOL:[-46,-40,54,46],XO:[12,-40,276,46],XOR:[292,-40,54,46],XL:[-46,10,54,184],XR:[292,10,54,184]};
+    for(const [z,[x,y,w,h]] of Object.entries(Z))s+=`<g class="gzx${sel===z?' sel':''}" data-gz="${z}" tabindex="0" role="button" aria-label="Fehlwurf ${GZ_LABEL[z]}"><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="6"/><text x="${x+w/2}" y="${y+h/2}" class="gzl"${h>w?` transform="rotate(-90 ${x+w/2} ${y+h/2})"`:''}>${GZ_LABEL[z]}</text></g>`;}
+  s+=`<rect x="${X0-10}" y="${Y0-10}" width="${W+20}" height="${H+12}" rx="4" class="gpost"/><rect x="${X0}" y="${Y0}" width="${W}" height="${H+2}" class="gnet"/>`;
   GZ.forEach((z,i)=>{const x=X0+(i%3)*cw,y=Y0+Math.floor(i/3)*ch,st=stats&&stats[z];
     const rate=st&&st.n?st.g/st.n:0,fill=stats?(st&&st.n?` style="fill-opacity:${(0.15+0.75*rate).toFixed(2)}"`:' style="fill:var(--surface)"'):'';
     s+=`<g class="gz${sel===z?' sel':''}${stats?' ro':''}${stats&&st&&st.n&&rate>=0.5?' hi':''}" data-gz="${z}" ${stats?'':`tabindex="0" role="button" aria-label="Wurfziel ${GZ_LABEL[z]}" aria-pressed="${sel===z}"`}><rect x="${x+2}" y="${y+2}" width="${cw-4}" height="${ch-4}" rx="5"${fill}/>`+
@@ -904,28 +984,35 @@ function renderLive(){
     toast(`${RES_LABEL[e.side][e.result]}${e.player!=null?' · '+pname(e.side,e.player):''}${e.pos?' · '+e.pos:''}${e.ast!=null?' · Assist '+pname('H',e.ast):''}${e.def!=null?' · Abwehr '+pname('H',e.def):''}${e.gz?' · '+GZ_LABEL[e.gz]:''}${e.sm?' · schnelle Mitte':''}${e.keep?' · Ball behalten':''}`);render();});
   const parts=[];if(p.play)parts.push(playName(c.side,p.play));if(p.pos)parts.push(p.pos);if(p.player!=null)parts.push(pname(c.side,p.player));parts.push(p.quality||'bedrängt');if(p.gz)parts.push('Ziel '+GZ_LABEL[p.gz]);if(c.side==='G'&&p.def!=null)parts.push('Abwehr '+pname('H',p.def));if(c.side==='H'&&p.ast!=null)parts.push('Assist '+pname('H',p.ast));
   $('pending').innerHTML='Aktuell: <b>'+parts.map(esc).join(' · ')+'</b>'+(p.pos?'':' · <span class="err">Wurfort fehlt</span> (Techn. Fehler geht ohne)');
-  const gp=$('goalPick');gp.innerHTML=goalSVG(p.gz);
-  gp.querySelectorAll('[data-gz]').forEach(g=>{const f=()=>{const z=g.dataset.gz;S.pending.gz=S.pending.gz===z?undefined:z;save();render();};g.onclick=f;g.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();f();}};});
+  const gp=$('goalPick');gp.setAttribute('viewBox','-48 -42 396 250');gp.innerHTML=goalSVG(p.gz);
+  gp.querySelectorAll('[data-gz]').forEach(g=>{const f=()=>{const z=g.dataset.gz;
+    if(GZX.includes(z)){S.pending.gz=z;save();if(needPos('vorbei')){toast(GZ_LABEL[z]+': jetzt den Wurfort antippen, dann wird „Vorbei“ gespeichert');render();return;}const rb=document.querySelector('[data-res="vorbei"]');if(rb)rb.click();return;}
+    S.pending.gz=S.pending.gz===z?undefined:z;save();render();};g.onclick=f;g.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();f();}};});
   {const dt=other(c.side),k=curGK(dt);$('gkChip').textContent=(dt==='G'?'TW Gegner: ':'Unser TW: ')+(k!=null?pname(dt,k):'nicht gesetzt')+' ⇄';$('gkChip').onclick=()=>gkSheet();}
   const svg=$('court');svg.innerHTML=courtSVG(p.pos,p.pos==='7m'?null:p.xy);
   svg.onclick=ev=>{const pt=svg.createSVGPoint();pt.x=ev.clientX;pt.y=ev.clientY;const q=pt.matrixTransform(svg.getScreenCTM().inverse());
-    const x=Math.round(Math.max(0,Math.min(400,q.x))),y=Math.round(Math.max(0,Math.min(260,q.y)));S.pending.pos=regionOf(x,y);S.pending.xy=[x,y];save();render();};
+    const x=Math.round(Math.max(0,Math.min(400,q.x))),y=Math.round(Math.max(0,Math.min(260,q.y)));S.pending.pos=regionOf(x,y);S.pending.xy=[x,y];save();render();if(GZX.includes(S.pending.gz)){const rb=document.querySelector('[data-res="vorbei"]');if(rb)rb.click();}};
   svg.querySelectorAll('[data-rg]').forEach(r=>r.onkeydown=ev=>{if(ev.key==='Enter'||ev.key===' '){ev.preventDefault();const g=GEO.find(g=>g.id===r.dataset.rg);S.pending.pos=g.id;S.pending.xy=[Math.round(g.lx),Math.round(g.ly)];save();render();}});
   $('btn7m').classList.toggle('sel',p.pos==='7m');
   $('btn7m').onclick=()=>{if(S.pending.pos==='7m'){S.pending.pos=undefined;}else{S.pending.pos='7m';S.pending.xy=undefined;S.pending.quality='frei';}save();render();};
   $('quality').innerHTML=['frei','bedrängt'].map(q=>`<button class="btn${(p.quality||'bedrängt')===q?' sel':''}" data-q="${q}">${q==='frei'?'Frei':'Bedrängt'}</button>`).join('');
   document.querySelectorAll('[data-q]').forEach(b=>b.onclick=()=>{S.pending.quality=b.dataset.q;save();render();});
   const gr=gridRoster(c.side);
-  $('playerLabel').textContent=c.side==='H'?'Werfer / Fehler (wir)':'Werfer Gegner';
-  $('players').innerHTML=gr.map(({p:pl,sn,cls})=>`<button class="btn num${cls}${p.player===pl.nr?' sel':''}" data-pl="${pl.nr}" title="${esc(pl.name)}"><b>${pl.nr}</b>${sn?`<small>${esc(sn)}</small>`:''}</button>`).join('');
-  document.querySelectorAll('[data-pl]').forEach(b=>b.onclick=()=>{const n=+b.dataset.pl;S.pending.player=S.pending.player===n?undefined:n;save();render();});
-  const isAtt=c.side==='H';$('astLabel').hidden=!isAtt;$('assists').hidden=!isAtt;
-  if(isAtt){
-    $('assists').innerHTML=gridRoster('H').map(({p:pl,sn,cls})=>`<button class="btn num${cls}${p.ast===pl.nr?' sel':''}" data-as="${pl.nr}" title="${esc(pl.name)}" ${p.player===pl.nr?'disabled':''}><b>${pl.nr}</b>${sn?`<small>${esc(sn)}</small>`:''}</button>`).join('');
-    document.querySelectorAll('[data-as]').forEach(b=>b.onclick=()=>{const n=+b.dataset.as;S.pending.ast=S.pending.ast===n?undefined:n;save();render();});}
+  const isAtt=c.side==='H';
+  $('playerLabel').textContent=isAtt?'Werfer / Assist':'Werfer Gegner';
+  $('playerHint').innerHTML=isAtt?'<span class="dot shot"></span>1. Tipp Werfer <span class="dot ast"></span>2. Tipp Assist':'';
+  $('players').innerHTML=gr.map(({p:pl,sn,cls})=>`<button class="btn num${cls}${p.player===pl.nr?' sel shot':isAtt&&p.ast===pl.nr?' sel ast':''}" data-pl="${pl.nr}" title="${esc(pl.name)}${p.player===pl.nr?' · Werfer':isAtt&&p.ast===pl.nr?' · Assist':''}"><b>${pl.nr}</b>${sn?`<small>${esc(sn)}</small>`:''}</button>`).join('');
+  document.querySelectorAll('#players [data-pl]').forEach(b=>b.onclick=()=>{const n=+b.dataset.pl,P=S.pending;
+    if(!isAtt){P.player=P.player===n?undefined:n;}
+    else if(P.player===n){P.player=undefined;}
+    else if(P.ast===n){P.ast=undefined;}
+    else if(P.player==null){P.player=n;}
+    else{P.ast=n;}
+    save();render();});
+  $('assists').hidden=true;
   const isDef=c.side==='G';$('defLabel').hidden=!isDef;$('defenders').hidden=!isDef;
   if(isDef){
-    $('defText').textContent='Unser Abwehrspieler · optional · beteiligt, Block, Ballgewinn oder Parade';
+    $('defText').textContent='Unsere Abwehr · optional';$('defText').title='Beteiligter Abwehrspieler: Block, Ballgewinn oder Parade';
     $('defenders').innerHTML=gridRoster('H').map(({p:pl,sn,cls})=>`<button class="btn num${cls}${p.def===pl.nr?' sel':''}" data-df="${pl.nr}" title="${esc(pl.name)}"><b>${pl.nr}</b>${sn?`<small>${esc(sn)}</small>`:''}</button>`).join('');
     document.querySelectorAll('[data-df]').forEach(b=>b.onclick=()=>{const n=+b.dataset.df;S.pending.def=S.pending.def===n?undefined:n;save();render();});}
   const L=S.events.slice(-60).reverse();
@@ -981,6 +1068,9 @@ function toAllowed(team){const u=toUsed(team);if(u.all>=3)return{ok:false,msg:'A
 $('toBtn').onclick=()=>{const c=ctx(),team=c.side,a=toAllowed(team);if(!a.ok){toast(a.msg);return;}
   const ck=S.clock;if(ck.run){ck.base=clockSec();ck.run=null;}
   S.events.push({type:'to',team,t:Math.round(clockSec()),w:Date.now(),half:S.half});save();toast(`Auszeit ${team==='H'?S.cfg.nameH:S.cfg.nameG} · Uhr angehalten`);render();tick();};
+function setFull(on){document.documentElement.classList.toggle('capfull',!!on);try{localStorage.setItem('hb-live-capfull',on?'1':'');}catch(e){}const fb=$('fullBtn');if(fb){fb.setAttribute('aria-pressed',!!on);fb.textContent=on?'⛶ Vollbild beenden':'⛶ Vollbild';}}
+$('fullBtn').onclick=()=>{setFull(!document.documentElement.classList.contains('capfull'));window.scrollTo(0,0);};
+try{if(localStorage.getItem('hb-live-capfull'))setFull(true);}catch(e){}
 $('penH').onclick=()=>{S.events.push({type:'pen',team:'H',t:Math.round(clockSec()),w:Date.now(),half:S.half});save();toast('2 Minuten gegen uns');render();};
 $('penG').onclick=()=>{S.events.push({type:'pen',team:'G',t:Math.round(clockSec()),w:Date.now(),half:S.half});save();toast('2 Minuten gegen den Gegner');render();};
 $('switch').onclick=()=>{S.events.push({type:'switch',side:other(ctx().side),t:Math.round(clockSec()),w:Date.now(),half:S.half});S.pending={};save();render();};
@@ -1525,6 +1615,8 @@ function analyze(){
   if(pl.length){const w=[...pl].sort((a,b)=>a[1].g/a[1].s-b[1].g/b[1].s)[0],bst=[...pl].sort((a,b)=>b[1].g/b[1].s-a[1].g/a[1].s)[0];
     if(w[1].g/w[1].s<.4)add(att,'warn',`Schwache Quote aus ${w[0]}`,`${w[1].g} Tore aus ${w[1].s} Würfen aus ${w[0]}.`);
     if(bst[1].s>=4&&bst[1].g/bst[1].s>=.7)add(att,'good',`Stark aus ${bst[0]}`,`${bst[1].g} Tore aus ${bst[1].s} Würfen aus ${bst[0]}.`);}
+  {const MX=PH.filter(e=>e.result==='vorbei'&&e.gz&&e.gz[0]==='X'),c={};for(const e of MX)c[e.gz]=(c[e.gz]||0)+1;const top=Object.entries(c).sort((a,b)=>b[1]-a[1]);
+    if(MX.length>=3)add(att,'info','Fehlwürfe',`${MX.length} Würfe vorbei: ${top.map(([k,v])=>`${v}× ${GZ_LABEL[k]}`).join(', ')}.`);}
   const alu=PH.filter(e=>e.result==='pfosten').length;if(alu>=3)add(att,'info','Pfosten und Latte',`${alu}× Aluminium getroffen. Platzierung im Abschluss üben.`);
   if(A.tf>=3&&A.tf/A.n>=.15)add(att,'warn','Viele technische Fehler',`${A.tf} technische Fehler in ${A.n} Angriffen (${pct(A.tf,A.n)}).`);
   else if(A.n>=15&&!onlyRep&&A.tf<=1)add(att,'good','Kaum technische Fehler',`Nur ${A.tf} technischer Fehler in ${A.n} Angriffen.`);
@@ -3109,14 +3201,14 @@ function oppFindHTML(name){
   const inLeague=leagueTable().some(x=>matchTeam(x.name,name));const cov=prevSeasonCoverage(),needPrev=!cov.known||cov.have<cov.n/2;
   if(inLeague&&!needPrev)return '';const e=oppEntry(name)||{},url=e.url||'',cur=seasonNow();
   const q=encodeURIComponent('site:handball.net/team "'+name+'"');
-  const curUrl=hbTeamSeasonUrl(url,cur,true),prevUrl=hbTeamSeasonUrl(url,cov.prev,false);
+  const curUrl=hbTeamSeasonUrl(url,cur,true);
   return `<div class="oppfind"><div class="label"><span>Spielberichte von ${esc(name)} auf handball.net</span></div>
     <div class="pending">${inLeague?'':'Dieser Gegner spielt nicht in unserer Liga, deshalb hat die App noch keine Daten. '}${needPrev?(cov.known?`Für ${cov.n-cov.have} von ${cov.n} Spielern liegen keine Werte aus ${esc(cov.prev)} vor. `:`Vorjahreswerte lassen sich erst prüfen, wenn Spielberichte eingelesen sind. `):''}handball.net lässt keine automatische Suche zu, mit diesen Links geht es aber schnell:</div>
     <div class="row"><a class="tool linkbtn2" href="https://www.google.com/search?q=${q}" target="_blank" rel="noopener">1. Teamseite suchen</a>
       ${curUrl&&!inLeague?`<a class="tool linkbtn2" href="${esc(curUrl)}" target="_blank" rel="noopener">Teamseite ${esc(cur)}</a>`:''}
-      ${prevUrl&&needPrev?`<a class="tool linkbtn2" href="${esc(prevUrl)}" target="_blank" rel="noopener">Teamseite Vorsaison ${esc(cov.prev)}</a>`:''}</div>
+      ${needPrev?`<a class="tool linkbtn2" href="https://www.google.com/search?q=${encodeURIComponent('site:handball.net "'+name+'" '+cov.prev)}" target="_blank" rel="noopener">Vorsaison ${esc(cov.prev)} suchen</a>`:''}</div>
     <div class="form"><label>2. Link der Teamseite hier einfügen<input id="of_url" type="url" value="${esc(url)}" placeholder="https://www.handball.net/team/…"></label></div>
-    <ol class="plan small"><li>Auf der Teamseite bei den gespielten Spielen jeweils das Spiel öffnen und den <b>Spielbericht</b> als PDF laden.${needPrev?` Für die Vorsaison den Link „Teamseite Vorsaison“ nehmen. Findet handball.net dort nichts, auf der Teamseite oben die Saison ${esc(cov.prev)} wählen.`:''}</li>
+    <ol class="plan small"><li>Auf der Teamseite bei den gespielten Spielen jeweils das Spiel öffnen und den <b>Spielbericht</b> als PDF laden.${needPrev?` <b>Vorsaison:</b> auf der Teamseite oben in der Saisonauswahl ${esc(cov.prev)} wählen (handball.net übernimmt die Saison nicht aus dem Link). Hieß das Team letzte Saison anders oder spielte in einer anderen Altersklasse, hilft „Vorsaison suchen“.`:''}</li>
       <li>Alle PDFs auf einmal unten bei <b>Gegner-Scouting</b> einlesen. Berichte aus der Vorsaison landen dabei auch in der Spielerdatenbank.</li></ol></div>`;}
 
 /* Spieldaten aus dem Spielplan übernehmen */
@@ -3245,8 +3337,8 @@ function openPlayer(name,team){
   $('sheet').querySelectorAll('[data-pdbrm]').forEach(b=>b.onclick=ev=>{ev.stopPropagation();const v=b.dataset.pdbrm,i=v.indexOf('|'),s=v.slice(0,i),k=v.slice(i+1),rec=pdb().seasons[s];if(!rec||!rec.players[k])return;
     const q=rec.players[k];if(!confirm(`Eintrag ${s} · ${q.team||'ohne Team'} · ${q.name} aus der Spielerdatenbank löschen?`))return;delete rec.players[k];pdbSave();toast('Eintrag gelöscht');openPlayer(name,team);});
 }
-document.addEventListener('click',ev=>{const b=ev.target.closest&&ev.target.closest('[data-pl]');if(!b)return;ev.preventDefault();openPlayer(b.dataset.pl,b.dataset.pt||'');});
-const plink=(name,team)=>name?`<button class="plink" data-pl="${esc(name)}" data-pt="${esc(team||'')}">${esc(name)}</button>`:'';
+document.addEventListener('click',ev=>{const b=ev.target.closest&&ev.target.closest('[data-plk]');if(!b)return;ev.preventDefault();openPlayer(b.dataset.plk,b.dataset.pt||'');});
+const plink=(name,team)=>name?`<button class="plink" data-plk="${esc(name)}" data-pt="${esc(team||'')}">${esc(name)}</button>`:'';
 /* Sync: Spielerdatenbank zusammenführen */
 function pdbMerge(rem,mode){if(!rem||!rem.seasons)return;const D=pdb();
   if(mode==='replace'){PDB=JSON.parse(JSON.stringify(rem));pdbRollover();pdbSave();return;}
@@ -3269,7 +3361,7 @@ function pdbHTML(){
       S_.map(s=>{const r=D.seasons[s],na=Object.keys(r.auto||{}).length,nt=Object.keys(r.players||{}).length;return `<tr><td class="num">${esc(s)}</td><td>${s===now?'<span class="st ok">laufend</span>':r.closed?`archiviert${r.archivedAt?' am '+new Date(r.archivedAt).toLocaleDateString('de-DE'):''}`:'offen'}</td><td class="r num">${na}</td><td class="r num">${nt}</td><td class="r num">${(r.tables||[]).length||'–'}</td><td class="r">${nt||(r.tables||[]).length?`<button class="mini danger" data-pdbdel="${esc(s)}">Tabellenwerte löschen</button>`:''}</td></tr>`;}).join('')||'<tr><td colspan="5" class="pending">Noch leer.</td></tr>'}</tbody></table></div>
     <div class="filebox"><label for="pdb_file"><b>Tabelle einer früheren Saison einlesen (XLSX, XLS, CSV)</b></label><input type="file" id="pdb_file" accept=".xlsx,.xls,.csv,.ods,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"><span class="pending" id="pdb_st">Eine Zeile pro Spieler. Danach ordnest du die Spalten zu.</span></div>
     <div class="form"><label>Spieler suchen<input id="pdb_q" value="${esc(pdbSearch)}" placeholder="Name eingeben"></label></div>
-    ${hits.length?`<div class="chips">${hits.map(x=>`<button class="tool" data-pl="${esc(x.name)}" data-pt="${esc(x.team||'')}">${esc(x.name)} <small>${[...x.seasons].join(', ')}</small></button>`).join('')}</div>`:q.length>=2?'<p class="pending">Kein Spieler gefunden.</p>':''}`;
+    ${hits.length?`<div class="chips">${hits.map(x=>`<button class="tool" data-plk="${esc(x.name)}" data-pt="${esc(x.team||'')}">${esc(x.name)} <small>${[...x.seasons].join(', ')}</small></button>`).join('')}</div>`:q.length>=2?'<p class="pending">Kein Spieler gefunden.</p>':''}`;
 }
 function bindPdb(){
   const re=()=>setTimeout(()=>settings('pdb'),0);
