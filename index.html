@@ -723,7 +723,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='56';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='57';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1784,6 +1784,29 @@ function playerSummary(d,side){
 }
 const KIND_LABEL={goal:'Tor',goal7:'7m-Tor',miss7:'7m-Fehlwurf',pen:'2 Minuten',dq:'Disqualifikation',warn:'Verwarnung',timeout:'Auszeit',half:'Halbzeit'};
 /* Fazit aus dem Spielbericht: dieselbe Auswertung wie auf der Spielbericht-Seite, aus Sicht unseres Teams */
+function progCompareHTML(r,us){
+  const them=us==='heim'?'gast':'heim',T={heim:r.heim.team,gast:r.gast.team},P=predictBefore(r.heim.team,r.gast.team,r.dk);
+  const head='<h3>Prognose und Ergebnis im Vergleich</h3>';
+  if(!P||P.why)return head+`<p class="pending">${esc((P&&P.why)||'Keine Prognose möglich.')}</p>`;
+  const ex={heim:P.eh,gast:P.ea},act={heim:r.heim.gf,gast:r.gast.gf},pr={heim:P.pH,gast:P.pA},actRes=act.heim>act.gast?'heim':act.heim<act.gast?'gast':'draw';
+  const pAct=actRes==='draw'?P.pD:pr[actRes],devA=act[us]-ex[us],devD=ex[them]-act[them],devT=devA+devD,F=progModel();
+  const rd=v=>(v>0?'+':'')+f1(v),R0=Math.round;
+  let h=head+`<div class="find ${pAct<0.25?'warn':'info'}"><span><b>Vorher erwartet: ${esc(T.heim)} ${R0(ex.heim)}:${R0(ex.gast)} ${esc(T.gast)}</b> (Sieg ${esc(T[us])} ${pctR(pr[us])}, Unentschieden ${pctR(P.pD)}, Sieg ${esc(T[them])} ${pctR(pr[them])}). <b>Tatsächlich: ${act.heim}:${act.gast}.</b> ${pAct<0.25?`Das war eine Überraschung: Die Prognose gab diesem Ausgang nur ${pctR(pAct)}.`:pAct>=0.6?'Der Ausgang entsprach der Prognose.':`Der Ausgang war möglich, aber nicht der wahrscheinlichste (${pctR(pAct)}).`}</span></div>`;
+  const diffs=[{k:'Angriff '+T[us],v:devA,txt:`${act[us]} Tore statt erwartet ${f1(ex[us])} (${rd(devA)})`},{k:'Abwehr '+T[us],v:devD,txt:`${act[them]} Gegentore statt erwartet ${f1(ex[them])} (${devD>=0?rd(devD)+' besser':rd(devD)+' schlechter'})`}].sort((a,b)=>Math.abs(b.v)-Math.abs(a.v));
+  h+=`<div class="tw"><table><thead><tr><th>Größte Unterschiede</th><th></th></tr></thead><tbody>${diffs.map(d=>`<tr><td>${esc(d.k)}</td><td class="${d.v>=2?'win':d.v<=-2?'loss':''}">${esc(d.txt)}</td></tr>`).join('')}<tr><td><b>Tordifferenz</b></td><td class="${devT>=2?'win':devT<=-2?'loss':''}"><b>${rd(act[us]-act[them])} statt erwartet ${rd(ex[us]-ex[them])} (${rd(devT)})</b></td></tr></tbody></table></div>`;
+  /* mögliche Gründe aus der Spielbericht-Analyse */
+  let A=null;try{A=repAnalysis(r);}catch(e){}
+  if(A&&Math.abs(devT)>=2){const L=A.out.filter(x=>x.side===(devT>0?us:them)).slice(0,3);if(L.length)h+=`<div class="pending"><b>Mögliche Gründe für die Abweichung:</b> ${L.map(x=>esc(x.title)).join(' · ')}.</div>`;}
+  /* Rückschlüsse für künftige Prognosen */
+  const res=(F&&F.resid)||[],notes=[];
+  for(const s of [us,them]){const tb=teamBias(res,T[s]);if(tb.n<3)continue;const own=s===us?devT:-devT;
+    if(Math.abs(tb.raw)>=2)notes.push(`${esc(T[s])} ${tb.raw>0?'übertrifft':'bleibt unter'} der Prognose bisher im Schnitt um ${f1(Math.abs(tb.raw))} Tore (${tb.n} Spiele)${Math.sign(own)===Math.sign(tb.raw)&&Math.abs(own)>=2?', dieses Spiel bestätigt den Trend':Math.abs(own)>=2?', dieses Spiel weicht in die andere Richtung ab':''}.`);
+    else if(Math.abs(own)>=4)notes.push(`Für ${esc(T[s])} lag die Prognose bisher im Schnitt gut (${f1(Math.abs(tb.raw))} Tore Abweichung in ${tb.n} Spielen). Dieses Spiel ist eher ein Ausreißer.`);}
+  if(A&&A.out.some(x=>/Schlüsselspieler fehlte/.test(x.title)))notes.push('Ein fehlender Schlüsselspieler erklärt einen Teil der Abweichung. Die Prognose kann Ausfälle erst berücksichtigen, wenn sie im letzten Spielbericht sichtbar sind.');
+  if(F&&F.back&&F.back.n>=10)notes.push(F.biasOn?`Die App korrigiert künftige Prognosen um solche wiederkehrenden Abweichungen. Im Rückblick sank die mittlere Abweichung dadurch von ${f1(F.back.ad)} auf ${f1(F.back.ad2)} Tore.`:`Eine Korrektur um wiederkehrende Abweichungen hat im Rückblick nicht geholfen (${f1(F.back.ad)} gegenüber ${f1(F.back.ad2)} Tore), deshalb ist sie nicht aktiv.`);
+  else notes.push('Für eine lernende Korrektur der Prognose braucht es mindestens 10 bewertbare Ligaspiele. Bis dahin werden die Abweichungen nur gesammelt.');
+  h+=`<div class="find info"><span><b>Rückschlüsse für künftige Prognosen:</b> ${notes.join(' ')}</span></div>`;
+  return h;}
 function anaFazit(){const R=S.report;if(!R||!R.meta)return null;let r=null;try{r=repCompact(R);}catch(e){return null;}if(!r.ev||!r.ev.length)return null;
   const A=repAnalysis(r),us=ourTeam(),them=us==='heim'?'gast':'heim',gf=r[us].gf,ga=r[them].gf,res=gf>ga?'S':gf<ga?'N':'U';
   const pro=A.out.filter(x=>x.side===us),con=A.out.filter(x=>x.side===them);return{r,A,us,them,gf,ga,res,pro,con};}
@@ -1796,7 +1819,7 @@ function anaFazitHTML(){const F=anaFazit();if(!F)return '';const T=x=>esc(F.r[x]
     ${repChartSVG(F.r,F.A)}
     <div class="cols2"><div><h3>Was für uns sprach</h3>${F.pro.slice(0,5).map(item).join('')||'<p class="pending">Keine deutlichen Pluspunkte in den Daten.</p>'}</div>
       <div><h3>Was gegen uns sprach</h3>${F.con.slice(0,5).map(item).join('')||'<p class="pending">Keine deutlichen Minuspunkte in den Daten.</p>'}</div></div>
-    ${A_neutral(F)}</section>`;}
+    ${A_neutral(F)}${progCompareHTML(F.r,F.us)}</section>`;}
 function A_neutral(F){const N=F.A.out.filter(x=>!x.side);return N.length?`<h3>Weitere Beobachtungen</h3>${N.slice(0,3).map(x=>`<div class="find info"><span><b>${esc(x.title)}</b> ${esc(x.text)}</span></div>`).join('')}`:'';}
 function renderAna(){
   const R=S.report,F=analyze(),g=S.game,sc=score(),ours=ourTeam();
@@ -1806,7 +1829,7 @@ function renderAna(){
   let h=`<section class="card anahead"><div><h2 class="ch">${esc(S.cfg.nameH)} ${sc.h}:${sc.g} ${esc(S.cfg.nameG)}</h2>
     <div class="pending">${esc(meta)}${R?` · Spielbericht: ${esc(R.meta.endstand||'')}`:''}</div>
     <div class="pending">Grundlage: ${posEv().length} Ballbesitze · ${S.sync?'mit Spielbericht abgeglichen':R?'Spielbericht eingelesen, noch nicht abgeglichen':'kein Spielbericht eingelesen'}</div></div>
-    <div class="row"><button class="tool primary" id="a_rep">${R?(S.sync?'Spielbericht erneut abgleichen':'Spielbericht abgleichen'):'Spielbericht einlesen'}</button><button class="tool" id="a_close">Spiel abschließen</button><button class="tool" id="a_causes">Ursachen nachtragen${posEv().length?' ('+posEv().filter(e=>!(e.causes&&e.causes.length)).length+' offen)':''}</button><button class="tool" id="a_data">Daten sichern</button></div></section>`;
+    <div class="row"><button class="tool primary" id="a_rep">${R?(S.sync?'Spielbericht erneut abgleichen':'Spielbericht abgleichen'):'Spielbericht einlesen'}</button><button class="tool" id="a_pdf">Als PDF speichern / teilen</button><button class="tool" id="a_close">Spiel abschließen</button><button class="tool" id="a_causes">Ursachen nachtragen${posEv().length?' ('+posEv().filter(e=>!(e.causes&&e.causes.length)).length+' offen)':''}</button><button class="tool" id="a_data">Daten sichern</button></div></section>`;
   if(!posEv().length)h+=`<section class="card"><h2 class="ch">Keine Szenen erfasst</h2><p>${R?'Der Spielbericht ist eingelesen. Mit „Analyse aus dem Spielbericht erstellen“ entsteht daraus die Auswertung mit Torschützen, Spielverlauf und Fazit.':'Für dieses Spiel wurden keine Spielzüge erfasst. Lies den Spielbericht ein, dann entsteht die Analyse aus dem Bericht.'}</p>
     <div class="row"><button class="tool primary" id="a_fromrep">${R?'Analyse aus dem Spielbericht erstellen':'Spielbericht einlesen'}</button></div></section>`;
   h+=anaFazitHTML();
@@ -1841,6 +1864,7 @@ function renderAna(){
   if($('a_fromrep'))$('a_fromrep').onclick=()=>{if(!S.report){reportSheet();return;}const ours=S.reportOurs||(isOurTeam(S.report.meta.heim)?'heim':isOurTeam(S.report.meta.gast)?'gast':(S.game.wir||guessOurTeam(S.report)));S.reportOurs=ours;buildSkeleton(S.report,ours);save();renderAna();toast('Analyse aus dem Spielbericht erstellt');};
   if($('a_notes'))$('a_notes').onchange=()=>{S.game.notes=$('a_notes').value;save();toast('Anmerkung gespeichert');};
   document.querySelectorAll('[data-rsumlive]').forEach(x=>x.onclick=()=>{const L=leagueState(),nr=S.report&&S.report.meta.nr;if(nr&&((L.reports||{})[nr]||(L.cup||{})[nr]))reportSummary(nr);else{L.cup=L.cup||{};const r=repCompact(S.report);const tmp=L.cup[r.nr];L.cup[r.nr]=r;reportSummary(r.nr).then(()=>{if(tmp)L.cup[r.nr]=tmp;else delete L.cup[r.nr];});}});
+  if($('a_pdf'))$('a_pdf').onclick=()=>anaPdfSave();
   $('a_rep').onclick=()=>reportSheet();if($('a_rep2'))$('a_rep2').onclick=()=>reportSheet();$('a_data').onclick=dataSheet;$('a_causes').onclick=()=>causeSheet('offen');$('a_close').onclick=()=>{if(!posEv().length&&!S.report){toast('Noch keine Szenen erfasst und kein Spielbericht eingelesen');return;}confirmClose();};
   document.querySelectorAll('[data-aside]').forEach(b=>b.onclick=()=>{anaSide=b.dataset.aside;renderAna();});
   document.querySelectorAll('[data-pnr]').forEach(b=>b.onclick=()=>{const k=anaSide+b.dataset.pnr;anaOpen.has(k)?anaOpen.delete(k):anaOpen.add(k);renderAna();});
@@ -2937,6 +2961,7 @@ async function reportSummary(code){
       return `<h3>Spielverlauf (Tordifferenz)</h3>${repChartSVG(r,A)}
       <h3>Analyse: Warum ist das Spiel so ausgegangen?</h3>
       ${A.win&&top.length?`<div class="find info"><span><b>${esc(r[A.win].team)} gewinnt mit ${Math.abs(H.gf-G.gf)} Tor${Math.abs(H.gf-G.gf)===1?'':'en'} Vorsprung.</b> Ausschlaggebend laut Statistik: ${top.map(x=>esc(x.title)).join(', ')}.</span></div>`:!A.win?'<div class="find info"><span><b>Unentschieden.</b></span></div>':''}
+      ${progCompareHTML(r,isOurTeam(G.team)?'gast':'heim')}
       ${A.out.map(x=>`<div class="find ${x.side==='heim'?'rep-h':x.side==='gast'?'rep-g':'info'}"><span><b>${esc(x.title)}${x.side?` <small>· spricht für ${esc(r[x.side].team)}</small>`:''}</b> ${esc(x.text)}</span></div>`).join('')||'<p class="pending">Keine besonderen Auffälligkeiten.</p>'}`;})()}
     <h3>Torschützen</h3><div class="pending"><b>Torschützen ${esc(H.team)}:</b> ${scorers(H)}</div><div class="pending"><b>Torschützen ${esc(G.team)}:</b> ${scorers(G)}</div>
     ${r.ev?`<details class="pastebox"><summary><b>Alle Ereignisse</b></summary><div class="log">${ev.map(e=>`<div><span class="s ${e.team==='heim'?'H':e.team==='gast'?'G':'X'}"></span><span class="t num">${fmt(e.t)}</span><span>${e.st?'<b>'+esc(e.st)+'</b> · ':''}${label[e.k]||e.k}${e.team?' · '+esc(e.team==='heim'?H.team:G.team):''}${e.nr!=null?' · Nr. '+e.nr+' '+esc(nm(e.team,e.nr)):''}</span></div>`).join('')}</div></details>`:'<p class="pending">Den Spielverlauf zeigt die App, nachdem der Bericht einmal neu eingelesen wurde.</p>'}
@@ -3085,13 +3110,26 @@ function progFor(F,home,away,noAbs){if(!F)return null;const h=F.find(home),a=F.f
   const abH=noAbs?[]:progAbsent(home),abA=noAbs?[]:progAbsent(away),fac=L=>Math.max(0.8,1-L.reduce((x,y)=>x+y.share*0.5,0));const fH=fac(abH),fA=fac(abA);
   p.eh*=fH;p.ea*=fA;const d=p.eh-p.ea;
   const pD=normCdf((0.5-d)/s)-normCdf((-0.5-d)/s),pH=1-normCdf((0.5-d)/s),pA=normCdf((-0.5-d)/s);
-  return{eh:p.eh,ea:p.ea,d,pH,pD,pA,h,a,nh:F.teams.get(h).n,na:F.teams.get(a).n,F,abH,abA,fH,fA};}
+  const out={eh:p.eh,ea:p.ea,d,pH,pD,pA,h,a,nh:F.teams.get(h).n,na:F.teams.get(a).n,F,abH,abA,fH,fA,corr:0};
+  return F.biasOn&&F.resid?progWithBias(out,F,F.resid):out;}
 let progCache=null,progAbsCache=new Map();
+/* Lernende Korrektur: wie stark lag die Prognose für ein Team bisher daneben (aus seiner Sicht, gedämpft bei wenigen Spielen)? */
+function teamBias(resid,name){let s=0,k=0;for(const r of resid){if(matchTeam(r.home,name)){s+=r.act-r.pred;k++;}else if(matchTeam(r.away,name)){s-=r.act-r.pred;k++;}}return{b:k?s/k*(k/(k+3)):0,raw:k?s/k:0,n:k};}
+function biasCorr(resid,home,away){if(!resid.length)return 0;return 0.5*(teamBias(resid,home).b-teamBias(resid,away).b);}
+function progWithBias(p,F,resid){if(!p)return p;const c=biasCorr(resid,p.h,p.a);if(!c)return Object.assign(p,{corr:0});const s=F.sigma,eh=p.eh+c/2,ea=p.ea-c/2,d=eh-ea;
+  return Object.assign(p,{eh,ea,d,corr:c,pD:normCdf((0.5-d)/s)-normCdf((-0.5-d)/s),pH:1-normCdf((0.5-d)/s),pA:normCdf((-0.5-d)/s)});}
+/* Prognose, wie sie vor einem Spiel gewesen wäre: nur Ergebnisse vor diesem Datum */
+function predictBefore(home,away,dk){if(!dk)return null;const M=progMatches().filter(m=>m.dk&&m.dk<dk);if(M.length<6)return {why:'Vor diesem Spiel gab es noch zu wenige Ergebnisse für eine Prognose.'};
+  const f=progFit(M,{ref:dkTime(dk)});let p=progFor(f,home,away,true);if(!p){const miss=[home,away].filter(t=>!f.find(t));return {why:miss.length?`Keine Prognose möglich: ${miss.join(' und ')} ${miss.length>1?'spielen':'spielt'} nicht in unserer Liga oder hatte vorher noch kein Spiel.`:'Keine Prognose möglich.'};}
+  const F=progModel();if(F&&F.biasOn)p=progWithBias(p,f,(F.resid||[]).filter(r=>r.dk<dk));return p;}
 function progModel(){const M=progMatches(),sig=M.length+'|'+M.map(m=>m.hs+':'+m.as+m.dk).join(',')+'|'+(pdb().modAt||0)+'|'+Object.keys(leagueState().reports||{}).length;if(progCache&&progCache.sig===sig)return progCache.F;progAbsCache=new Map();
-  const F=progFit(M);if(F){/* Rückblick: jedes Spiel nur mit den Ergebnissen davor vorhersagen */let ok=0,n=0,ad=0;
+  const F=progFit(M);if(F){/* Rückblick: jedes Spiel nur mit den Ergebnissen davor vorhersagen; Abweichungen merken */let ok=0,n=0,ad=0,ok2=0,ad2=0;const resid=[];
     for(let i=0;i<M.length;i++){const prior=M.filter((x,j)=>j!==i&&x.dk<M[i].dk);if(prior.length<6)continue;const f=progFit(prior,{ref:dkTime(M[i].dk)}),p=progFor(f,M[i].home,M[i].away,true);if(!p||p.nh<2||p.na<2)continue;
-      const tip=p.pH>=p.pA&&p.pH>=p.pD?1:p.pA>=p.pD?-1:0,res=Math.sign(M[i].hs-M[i].as);n++;if(tip===res)ok++;ad+=Math.abs((M[i].hs-M[i].as)-p.d);}
-    F.back={n,ok,ad:n?ad/n:null};}
+      const act=M[i].hs-M[i].as,res=Math.sign(act),tipOf=d=>{const pD=normCdf((0.5-d)/f.sigma)-normCdf((-0.5-d)/f.sigma),pH=1-normCdf((0.5-d)/f.sigma),pA=normCdf((-0.5-d)/f.sigma);return pH>=pA&&pH>=pD?1:pA>=pD?-1:0;};
+      n++;if(tipOf(p.d)===res)ok++;ad+=Math.abs(act-p.d);
+      const c=biasCorr(resid.filter(r=>r.dk<M[i].dk),M[i].home,M[i].away),d2=p.d+c;if(tipOf(d2)===res)ok2++;ad2+=Math.abs(act-d2);
+      resid.push({home:M[i].home,away:M[i].away,dk:M[i].dk,act,pred:p.d,eh:p.eh,ea:p.ea,hs:M[i].hs,as:M[i].as});}
+    F.resid=resid;F.back={n,ok,ad:n?ad/n:null,ok2,ad2:n?ad2/n:null};F.biasOn=n>=10&&ad2<ad-0.05*n&&ok2>=ok;}
   progCache={sig,F};return F;}
 const pctR=v=>Math.round(v*100)+' %';
 function progShort(p){if(!p)return '';const tip=p.pH>=p.pA?'heim':'gast';return `${Math.round(p.eh)}:${Math.round(p.ea)}`;}
@@ -3111,11 +3149,12 @@ function progSheet(home,away){
       ${row('Spiele in der Wertung',Th.n,Ta.n)}${row('Ø Tore',Th.n?f1x(Th.gf/Th.n):'–',Ta.n?f1x(Ta.gf/Ta.n):'–')}${row('Ø Gegentore',Th.n?f1x(Th.ga/Th.n):'–',Ta.n?f1x(Ta.ga/Ta.n):'–')}
       ${row('Angriffsstärke (1,00 = Liga-Schnitt, gegnerbereinigt)',f2(Th.att),f2(Ta.att))}${row('Abwehr (unter 1,00 = weniger Gegentore als Schnitt)',f2(Th.def),f2(Ta.def))}
       ${row('Letzte Spiele',form(home),form(away))}</tbody></table></div>
+    ${p.corr?`<div class="find info"><span><b>Korrektur aus bisherigen Abweichungen:</b> ${p.corr>0?esc(home):esc(away)} wird um ${f1(Math.abs(p.corr))} Tore stärker eingeschätzt, weil die Prognose dieses Team bisher unterschätzt bzw. den Gegner überschätzt hat.</span></div>`:''}
     ${abs.length?`<div class="find warn"><span><b>Ausfälle berücksichtigt:</b> ${abs.map(([t,x])=>`${esc(x.name)} (${esc(t)}, Ø ${f1x(x.avg)} Tore) fehlte im letzten Spielbericht${x.datum?' vom '+esc(x.datum):''}`).join('; ')}. Erwartete Tore deshalb ${[...new Set(abs.map(([t,,f])=>esc(t)+' −'+Math.round((1-f)*100)+' %'))].join(', ')}. Ob er wieder dabei ist, weiß die App nicht.</span></div>`:''}
     ${pri.length?`<div class="pending"><b>Startwerte aus der Vorsaison:</b> ${pri.map(([t,X])=>`${esc(t)} = „${esc(X.prior.name)}“ ${esc(X.prior.season)} (Angriff ${f2(X.prior.att)}, Abwehr ${f2(X.prior.def)})`).join(' · ')}. Sie zählen wie ${PROG_K} Spiele und verlieren mit jedem gespielten Spiel an Gewicht.</div>`:F.priors.length?'':'<div class="pending">Keine Vorjahrestabelle vorhanden. Mit einer Excel-Datei der Vorsaison (Blatt „Tabelle“) werden die ersten Spieltage genauer.</div>'}
     ${h2h.length?`<div class="pending"><b>Bisherige Duelle dieser Saison:</b> ${h2h.map(m=>`${esc(m.home)} ${m.hs}:${m.as} ${esc(m.away)}`).join(' · ')}</div>`:''}
     <div class="find info"><span><b>So entsteht die Prognose.</b> Aus allen ${F.n} Ergebnissen der Saison wird für jedes Team eine Angriffs- und Abwehrstärke berechnet, bereinigt um die Stärke der Gegner. Dazu kommt der Heimvorteil der Liga (Heimteams werfen ${f1x((F.hadv-1)*100)} % mehr Tore). Neuere Spiele zählen mehr: ein Spiel von vor ${PROG_HALF} Tagen zählt halb so viel wie ein aktuelles. Bei wenigen Spielen werden die Werte zum Vorjahreswert oder Liga-Schnitt hin gedämpft. Die Wahrscheinlichkeiten ergeben sich aus der bisherigen Streuung (± ${f1x(F.sigma)} Tore).</span></div>
-    ${F.back&&F.back.n?`<div class="find ${F.back.ok/F.back.n>=.6?'good':'info'}"><span><b>Bisherige Trefferquote:</b> ${F.back.ok} von ${F.back.n} Spielen richtig getippt (${pct(F.back.ok,F.back.n)}), jeweils nur mit den Ergebnissen davor berechnet. Die Tordifferenz lag im Schnitt ${f1x(F.back.ad)} Tore daneben.</span></div>`:'<p class="pending">Trefferquote: noch zu wenige Spiele für einen Rückblick.</p>'}
+    ${F.back&&F.back.n?(()=>{const ok=F.biasOn?F.back.ok2:F.back.ok,ad=F.biasOn?F.back.ad2:F.back.ad;return `<div class="find ${ok/F.back.n>=.6?'good':'info'}"><span><b>Bisherige Trefferquote:</b> ${ok} von ${F.back.n} Spielen richtig getippt (${pct(ok,F.back.n)}), jeweils nur mit den Ergebnissen davor berechnet. Die Tordifferenz lag im Schnitt ${f1x(ad)} Tore daneben.${F.biasOn?` Mit der Korrektur aus bisherigen Abweichungen (ohne: ${F.back.ok} richtig, ${f1x(F.back.ad)} Tore daneben).`:F.back.n>=10?' Eine Korrektur aus bisherigen Abweichungen hat im Rückblick nicht geholfen und ist deshalb aus.':''}</span></div>`;})():'<p class="pending">Trefferquote: noch zu wenige Spiele für einen Rückblick.</p>'}
     <p class="pending">Nicht enthalten: tatsächliche Aufstellung und Tagesform. Ausfälle werden nur erkannt, wenn ein Schlüsselspieler im letzten eingelesenen Spielbericht fehlte.</p>`;
   openSheet(h);
 }
@@ -3218,7 +3257,7 @@ document.addEventListener('click',ev=>{const b=ev.target.closest&&ev.target.clos
 
 /* ---------- Scouting-Bericht als echte PDF-Datei (jsPDF), Teilen-Menü am iPad, Download am Mac ---------- */
 const JSPDF_URL='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-const pdfTxt=s=>String(s==null?'':s).replace(/≈/g,'ca.').replace(/−/g,'-').replace(/[⏎★✓×]/g,'').replace(/[  ]/g,' ').replace(/[^\x00-\xFF€„“”‚‘’–—…•·]/g,'');
+const pdfTxt=s=>String(s==null?'':s).replace(/×/g,'x').replace(/≈/g,'ca.').replace(/−/g,'-').replace(/[⏎★✓×]/g,'').replace(/[  ]/g,' ').replace(/[^\x00-\xFF€„“”‚‘’–—…•·]/g,'');
 async function scoutPdfBlob(t,cx){
   if(!window.jspdf)await loadScript(JSPDF_URL);if(!window.jspdf)throw new Error('PDF-Erzeugung nicht verfügbar');
   const R=scoutReportData(t,cx),A=R.A,T=leagueTable(),pos=T.findIndex(x=>normT(x.name)===normT(t.name))+1,pg=scoutCtxProg(t,cx);
@@ -3645,6 +3684,51 @@ function setupSheet(){
   if($('su_sync'))$('su_sync').onclick=async()=>{const st=$('su_sst');st.textContent='Verbinde …';try{await ghConnect($('su_tok').value,$('su_pw').value);done();closeSheet();render();toast('Daten vom anderen Gerät übernommen');}
     catch(e){st.innerHTML='<span class="err">'+esc(e.pass?e.message:e.status===401?'Zugangsschlüssel ungültig':e.message||String(e))+'</span>';}};
 }
+
+/* ---------- PDF-Baukasten (jsPDF) und Speichern/Teilen ---------- */
+function pdfKit(title,subtitle){const doc=new window.jspdf.jsPDF({unit:'mm',format:'a4'}),W=210,M=16,CW=W-2*M;let y=M;
+  const need=h=>{if(y+h>297-M){doc.addPage();y=M;}};
+  const txt=(s,o)=>{o=o||{};doc.setFont('helvetica',o.bold?'bold':'normal');doc.setFontSize(o.size||10);doc.setTextColor(...(o.color||[20,24,32]));
+    const L=doc.splitTextToSize(pdfTxt(s),o.w||CW),lh=(o.size||10)*0.42+0.6;need(L.length*lh);doc.text(L,o.x||M,y+lh*0.8);y+=L.length*lh+(o.after==null?1.5:o.after);};
+  const h3=s=>{y+=2;need(10);doc.setDrawColor(200,205,215);doc.line(M,y,W-M,y);y+=1.5;txt(String(s).toUpperCase(),{bold:true,size:9,color:[90,98,112],after:1.5});};
+  const bullet=(s,col)=>{need(6);doc.setFillColor(...(col||[36,95,168]));doc.circle(M+1.3,y+2.2,0.9,'F');txt(s,{x:M+4,w:CW-4});};
+  const table=(head,rows,widths,alignR)=>{const lh=5.2;const draw=(r,b)=>{need(lh);let x=M;doc.setFont('helvetica',b?'bold':'normal');doc.setFontSize(9);doc.setTextColor(20,24,32);
+      r.forEach((c,i)=>{const s=doc.splitTextToSize(pdfTxt(c),widths[i]-1)[0]||'';if(alignR&&alignR[i])doc.text(s,x+widths[i]-1,y+3.8,{align:'right'});else doc.text(s,x,y+3.8);x+=widths[i];});y+=lh;};
+    draw(head,true);doc.setDrawColor(220,224,230);doc.line(M,y,W-M,y);rows.forEach(r=>draw(r,false));y+=2;};
+  {doc.setFont('helvetica','bold');doc.setFontSize(17);const tl=doc.splitTextToSize(pdfTxt(title),CW);doc.setTextColor(20,24,32);doc.text(tl,M,y+6);y+=4+tl.length*7;}
+  if(subtitle)txt(subtitle,{size:9,color:[90,98,112],after:3});
+  const finish=foot=>{const n=doc.getNumberOfPages();for(let i=1;i<=n;i++){doc.setPage(i);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(140,146,156);doc.text(pdfTxt(`${foot} · Seite ${i}/${n}`),W/2,297-8,{align:'center'});}return doc.output('blob');};
+  return{doc,txt,h3,bullet,table,finish};}
+async function savePdfBlob(blob,fn,title,btn,label,retry){const file=new File([blob],fn,{type:'application/pdf'});
+  if(navigator.canShare&&navigator.canShare({files:[file]})&&IS_TOUCH){try{await navigator.share({files:[file],title});}
+    catch(e){if(e&&e.name==='NotAllowedError'&&btn){btn.disabled=false;btn.textContent='PDF ist fertig: jetzt teilen';btn.onclick=async()=>{try{await navigator.share({files:[file],title});}catch(x){}btn.textContent=label;btn.onclick=retry;};return 'wait';}if(e&&e.name!=='AbortError')throw e;}}
+  else{const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=fn;document.body.appendChild(a);a.click();setTimeout(()=>{a.remove();URL.revokeObjectURL(u);},4000);toast('PDF gespeichert: '+fn);}}
+/* Text aus einem HTML-Block für das PDF (Absätze, Tabellenzeilen, Hinweise) */
+function htmlToPdfLines(html){const d=document.createElement('div');d.innerHTML=html;const out=[];
+  d.querySelectorAll('h3,.find,.pending,p,tr').forEach(el=>{if(el.closest('tr')&&el.tagName!=='TR')return;const t=(el.tagName==='TR'?[...el.children].map(c=>c.textContent.trim()).join(': '):el.textContent).replace(/\s+/g,' ').trim();if(t)out.push({t,h:el.tagName==='H3',b:el.classList.contains('find')});});return out;}
+
+/* ---------- Analyse als PDF ---------- */
+async function anaPdfSave(){const btn=$('a_pdf'),label='Als PDF speichern / teilen';if(btn){btn.disabled=true;btn.textContent='PDF wird erstellt …';}
+  try{if(!window.jspdf)await loadScript(JSPDF_URL);if(!window.jspdf)throw new Error('PDF nicht verfügbar');
+    const g=S.game,R=S.report,sc=score(),F=analyze(),Z=anaFazit(),typ=TYP_LABEL[g.typ||'liga']||'Spiel';
+    const datum=g.datum?new Date(g.datum+'T12:00').toLocaleDateString('de-DE',{weekday:'long',day:'2-digit',month:'2-digit',year:'numeric'}):(R&&R.meta.datum?R.meta.datum.split(',')[0]:'');
+    const K=pdfKit(`Analyse ${typ}: ${S.cfg.nameH} ${sc.h}:${sc.g} ${S.cfg.nameG}`,[datum,g.zeit?g.zeit+' Uhr':'',g.halle||(R&&R.meta.ort)||'',g.wir?(g.wir==='heim'?'Heimspiel':'Auswärtsspiel'):'',g.klasse||(R&&R.meta.klasse)||''].filter(Boolean).join(' · '));
+    K.txt(`Grundlage: ${posEv().filter(e=>e.src!=='bericht').length} live erfasste Ballbesitze${R?' · Spielbericht '+(R.meta.endstand||'')+(S.sync?' (abgeglichen)':''):' · kein Spielbericht'}`,{size:8.5,color:[90,98,112],after:2});
+    if(Z){K.h3('Fazit');K.txt(anaFazitText(),{bold:true,after:2});
+      K.h3('Was für uns sprach');(Z.pro.length?Z.pro.slice(0,5):[{title:'Keine deutlichen Pluspunkte in den Daten.',text:''}]).forEach(x=>K.bullet(x.title+(x.text?': '+x.text:''),[35,134,84]));
+      K.h3('Was gegen uns sprach');(Z.con.length?Z.con.slice(0,5):[{title:'Keine deutlichen Minuspunkte in den Daten.',text:''}]).forEach(x=>K.bullet(x.title+(x.text?': '+x.text:''),[176,96,0]));
+      for(const l of htmlToPdfLines(progCompareHTML(Z.r,Z.us))){if(l.h)K.h3(l.t);else if(l.b)K.bullet(l.t);else K.txt(l.t);}}
+    if(!F.empty){K.h3('Befunde Angriff');(F.att.length?F.att:[{title:'Keine Auffälligkeiten',text:''}]).forEach(f=>K.bullet(f.title+(f.text?': '+f.text:''),f.sev==='warn'?[176,96,0]:f.sev==='good'?[35,134,84]:[36,95,168]));
+      K.h3('Befunde Abwehr');(F.def.length?F.def:[{title:'Keine Auffälligkeiten',text:''}]).forEach(f=>K.bullet(f.title+(f.text?': '+f.text:''),f.sev==='warn'?[176,96,0]:f.sev==='good'?[35,134,84]:[36,95,168]));}
+    if(g.plan&&g.plan.trim()){K.h3('Schwerpunkte aus der Vorbereitung');g.plan.split('\n').filter(x=>x.trim()).forEach(x=>K.bullet(x.trim()));}
+    if(g.notes&&g.notes.trim()){K.h3('Anmerkungen');K.txt(g.notes.trim());}
+    if(R&&R.roster){for(const s of ['heim','gast']){const L=[...(R.roster[s]||[])].filter(p=>p.tore>0).sort((a,b)=>b.tore-a.tore);if(!L.length)continue;K.h3('Torschützen '+(R.meta[s]||s));K.table(['Nr.','Name','Tore','7m'],L.map(p=>[p.nr,p.name||'',p.tore,p.m7||'–']),[14,110,24,30],[0,0,1,1]);}}
+    K.txt('Nur für den internen Gebrauch, enthält Daten von Minderjährigen.',{size:8,color:[90,98,112]});
+    const blob=K.finish('Handball Live · Analyse '+S.cfg.nameH+' – '+S.cfg.nameG);
+    const fn=('Analyse '+(g.typ&&g.typ!=='liga'?typ+' ':'')+S.cfg.nameG+' '+(g.datum||new Date().toISOString().slice(0,10))).replace(/[^\wÄÖÜäöüß .-]+/g,'').replace(/\s+/g,'_')+'.pdf';
+    const r=await savePdfBlob(blob,fn,'Analyse '+S.cfg.nameH+' – '+S.cfg.nameG,btn,label,anaPdfSave);if(r==='wait')return;}
+  catch(e){toast(navigator.onLine?'PDF konnte nicht erstellt werden':'Für das erste PDF ist einmal Internet nötig');}
+  if(btn){btn.disabled=false;btn.textContent=label;}}
 
 S=load();
 const SETUP0=localStorage.getItem('hb-live-setup'),FIRST_RUN=SETUP0==='pending'||(!S&&!SETUP0);
