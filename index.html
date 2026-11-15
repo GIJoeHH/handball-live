@@ -723,7 +723,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='59';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='60';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1674,6 +1674,13 @@ function analyze(){
   if(hb.H[1]+hb.G[1]>0){const d1=hb.H[0]-hb.G[0],d2=hb.H[1]-hb.G[1];
     add(att,hb.H[1]<hb.H[0]*0.6?'warn':'info','Halbzeiten',`Eigene Tore: 1. HZ ${hb.H[0]}, 2. HZ ${hb.H[1]}.`);
     add(def,hb.G[1]>hb.G[0]*1.4&&hb.G[1]-hb.G[0]>=3?'warn':'info','Halbzeiten',`Gegentore: 1. HZ ${hb.G[0]}, 2. HZ ${hb.G[1]}. Halbzeitergebnisse ${hb.H[0]}:${hb.G[0]} und ${hb.H[1]}:${hb.G[1]}${Math.sign(d1)!==Math.sign(d2)&&d1&&d2?', die Halbzeiten liefen gegensätzlich':''}.`);}
+  if(!S.report){try{const lc=liveCompact(),last=Math.max(0,...lc.ev.filter(e=>e.k!=='half').map(e=>e.t)),ht0=(S.cfg.halfLen||25)*60;
+    if(last>=2*ht0-180){const C=crunchGame(lc),x=C&&C.heim,y=C&&C.gast;
+      if(x&&x.close5){const [a,b]=x.l5,ex=[];if(x.close2)ex.push(`2 Minuten vor Schluss ${C.s2[0]}:${C.s2[1]}, danach ${x.l2[0]}:${x.l2[1]}.`);if(x.g7+x.m7)ex.push(`Eigene 7m in dieser Phase ${x.g7}/${x.g7+x.m7}.`);if(x.pens)ex.push(`${x.pens}× Zeitstrafe gegen uns.`);if(y.pens)ex.push(`${y.pens}× Zeitstrafe gegen den Gegner.`);
+        add(att,a>b?'good':a<b?'warn':'info','Crunch-Time: enge Schlussphase',`5 Minuten vor Schluss stand es ${C.s5[0]}:${C.s5[1]}. Die letzten 5 Minuten: ${a}:${b}.${ex.length?' '+ex.join(' '):''}`);}
+      if(x&&x.blown)add(def,'warn','Crunch-Time: Führung abgegeben',`Wir führten in der ${Math.floor(x.tLead/60)+1}. Minute mit ${x.maxLead} Toren und haben das Spiel nicht gewonnen.`);
+      else if(x&&x.scare)add(def,'info','Crunch-Time: Führung fast verspielt',`Aus ${x.maxLead} Toren Vorsprung (${Math.floor(x.tLead/60)+1}. Minute) wurde zwischenzeitlich ${x.minAfter<=0?'ein Gleichstand oder Rückstand':'nur noch 1 Tor'}.`);
+      if(x&&x.comeback&&x.maxDef>=CR_LEAD)add(att,'good','Crunch-Time: Rückstand aufgeholt',`Wir lagen in der ${Math.floor(x.tDef/60)+1}. Minute mit ${x.maxDef} Toren zurück und haben noch ${x.fin>0?'gewonnen':'einen Punkt geholt'}.`);}}catch(e){}}
   if(runs.H.k>=4)add(att,'good','Bester Lauf',`${runs.H.k}:0 zwischen ${fmt(evTime(runs.H.from))} und ${fmt(evTime(runs.H.to))}.`);
   // --- Abwehr
   if(B.n>=8&&!onlyRep){const e=B.g/B.n;add(def,e<=.4?'good':e>=.55?'warn':'info','Gegentore pro Angriff',`${B.g} Gegentore aus ${B.n} gegnerischen Ballbesitzen (${pct(B.g,B.n)}).`);}
@@ -3019,6 +3026,58 @@ function stoppedGamesHTML(team){const sp=seasonPlayersOf(team);if(!sp)return '';
   return `<div class="find info"><span><b>Wann wurden die Torjäger gestoppt?</b> ${items.join(' · ')}. ${top.some(p=>true)?'Diese Spiele lohnen sich anzuschauen: Wie hat die Abwehr dort gespielt?':''}</span></div>`;}
 
 /* ---------- Spielbericht-Analyse: statistische Gründe für den Ausgang ---------- */
+/* ---------- Crunch-Time: enge Schlussphasen, verspielte Führungen, aufgeholte Rückstände ---------- */
+const CR_LEAD=4;
+function crunchGame(r){
+  const ev=(r.ev||[]).slice().sort((a,b)=>a.t-b.t),goals=ev.filter(e=>e.k==='goal'||e.k==='goal7');if(!goals.length)return null;
+  const he=ev.find(e=>e.k==='half'),ht=he?he.t:(S.cfg.halfLen||25)*60,end=Math.max(2*ht,...ev.map(e=>e.t));
+  const at=t=>{let h=0,g=0;for(const e of goals){if(e.t>t)break;e.team==='heim'?h++:g++;}return[h,g];};
+  const fin=at(Infinity),s5=at(end-300),s2=at(end-120);
+  const side=s=>{const i=s==='heim'?0:1,j=1-i,d=x=>x[i]-x[j];let h=0,g=0,maxLead=0,tLead=0,minAfter=null,maxDef=0,tDef=0;
+    for(const e of goals){e.team==='heim'?h++:g++;const df=s==='heim'?h-g:g-h;
+      if(df>maxLead){maxLead=df;tLead=e.t;minAfter=df;}else if(minAfter!=null)minAfter=Math.min(minAfter,df);
+      if(-df>maxDef){maxDef=-df;tDef=e.t;}}
+    const c5=Math.abs(d(s5))<=2,c2=Math.abs(d(s2))<=1,E5=ev.filter(e=>e.t>end-300&&e.team===s);
+    return{d5:d(s5),d2:d(s2),fin:d(fin),close5:c5,close2:c2,l5:[fin[i]-s5[i],fin[j]-s5[j]],l2:[fin[i]-s2[i],fin[j]-s2[j]],maxLead,tLead,minAfter,maxDef,tDef,
+      blown:maxLead>=CR_LEAD&&d(fin)<=0,scare:maxLead>=CR_LEAD&&d(fin)>0&&minAfter<=1,comeback:maxDef>=CR_LEAD&&d(fin)>=0,
+      g7:c5?E5.filter(e=>e.k==='goal7').length:0,m7:c5?E5.filter(e=>e.k==='miss7').length:0,pens:c5?E5.filter(e=>e.k==='pen'||e.k==='dq').length:0};};
+  /* spätes entscheidendes Tor: letzter Treffer bei Gleichstand (Führung) oder letzter Treffer zum Ausgleich */
+  let dec=null;{let h=0,g=0,last=null;for(const e of goals){const b=h-g;e.team==='heim'?h++:g++;if(b===0)last={e,h,g,kind:'lead'};else if(h===g)last={e,h,g,kind:'tie'};}
+    if(last&&last.e.t>end-120){const w=fin[0]>fin[1]?'heim':fin[0]<fin[1]?'gast':null;if((last.kind==='lead'&&w===last.e.team)||(last.kind==='tie'&&!w))dec=last;}}
+  return{ht,end,fin,s5,s2,dec,heim:side('heim'),gast:side('gast')};
+}
+function crunchTeam(t){
+  const R=leagueState().reports||{},Z=()=>({n:0,s:0,u:0,nn:0}),cnt=(o,d)=>{o.n++;if(d>0)o.s++;else if(d<0)o.nn++;else o.u++;};
+  const c={n:0,tight:Z(),c5:Object.assign(Z(),{f:0,a:0}),c2:Object.assign(Z(),{f:0,a:0}),lead:{n:0,held:0,scare:0,blown:[]},def:{n:0,back:[]},g7:0,a7:0,pens:0,pensO:0,lines:[]};
+  const gl=g=>`${g.gf}:${g.ga} ${g.hg==='heim'?'gegen':'bei'} ${g.gegner}`;
+  for(const g of t.games){const fd=g.gf-g.ga;if(Math.abs(fd)<=2)cnt(c.tight,fd);
+    const r=g.nr?R[g.nr]:null;if(!r||!r.ev)continue;let C=null;try{C=crunchGame(r);}catch(e){}if(!C)continue;const x=C[g.hg],y=C[g.hg==='heim'?'gast':'heim'];if(!x||!y)continue;c.n++;
+    if(x.close5){cnt(c.c5,x.fin);c.c5.f+=x.l5[0];c.c5.a+=x.l5[1];c.g7+=x.g7;c.a7+=x.g7+x.m7;c.pens+=x.pens;c.pensO+=y.pens;}
+    if(x.close2){cnt(c.c2,x.fin);c.c2.f+=x.l2[0];c.c2.a+=x.l2[1];}
+    if(x.maxLead>=CR_LEAD){c.lead.n++;if(x.blown)c.lead.blown.push(`+${x.maxLead} → ${gl(g)}`);else{c.lead.held++;if(x.scare)c.lead.scare++;}}
+    if(x.maxDef>=CR_LEAD){c.def.n++;if(x.comeback)c.def.back.push(`−${x.maxDef} → ${gl(g)}`);}}
+  const bil=o=>`${o.s} S · ${o.u} U · ${o.nn} N`,sp=n=>n===1?'1 Spiel':n+' Spiele';
+  if(c.tight.n)c.lines.push(`Enge Spiele (Endstand mit höchstens 2 Toren Unterschied): ${sp(c.tight.n)}, Bilanz ${bil(c.tight)}.`);
+  if(c.n){
+    c.lines.push(c.c5.n?`Enger Stand 5 Minuten vor Schluss (höchstens 2 Tore): ${sp(c.c5.n)}, Bilanz ${bil(c.c5)}. Die letzten 5 Minuten zusammen ${c.c5.f}:${c.c5.a}.`:'Bisher kein Spiel, das 5 Minuten vor Schluss noch eng war (höchstens 2 Tore).');
+    if(c.c2.n)c.lines.push(`Höchstens 1 Tor Unterschied 2 Minuten vor Schluss: ${sp(c.c2.n)}, Bilanz ${bil(c.c2)}. Die letzten 2 Minuten zusammen ${c.c2.f}:${c.c2.a}.`);
+    if(c.lead.n)c.lines.push(`Führung von mindestens ${CR_LEAD} Toren: ${sp(c.lead.n)}, ${c.lead.held}× gewonnen${c.lead.scare?` (davon ${c.lead.scare}× bis auf 1 Tor oder Gleichstand geschmolzen)`:''}${c.lead.blown.length?`, ${c.lead.blown.length}× noch abgegeben (${c.lead.blown.join('; ')})`:', nie abgegeben'}.`);
+    if(c.def.n)c.lines.push(`Rückstand von mindestens ${CR_LEAD} Toren: ${sp(c.def.n)}, ${c.def.back.length?`${c.def.back.length}× noch gepunktet (${c.def.back.join('; ')})`:'nie mehr gepunktet'}.`);
+    if(c.c5.n&&(c.a7||c.pens||c.pensO))c.lines.push(`In engen Schlussphasen: ${c.a7?`7m ${c.g7}/${c.a7}`:'kein 7m'}, Zeitstrafen ${c.pens} (Gegner ${c.pensO}).`);}
+  /* Einordnung für Chancen und Herausforderungen */
+  c.ch=[];c.hd=[];
+  if(c.c5.n>=2){const net=c.c5.f-c.c5.a;
+    if(c.c5.nn>c.c5.s&&net<0)c.ch.push({w:2+c.c5.nn-c.c5.s-net/3,text:`In engen Schlussphasen verlieren sie öfter (${bil(c.c5)}, letzte 5 Minuten zusammen ${c.c5.f}:${c.c5.a}). Bis zum Schluss dranbleiben, ein enges Spiel spricht für uns.`});
+    if(c.c5.s>c.c5.nn&&net>0)c.hd.push({w:2+c.c5.s-c.c5.nn+net/3,text:`Stark in engen Schlussphasen (${bil(c.c5)}, letzte 5 Minuten zusammen ${c.c5.f}:${c.c5.a}). Das Spiel möglichst vorher entscheiden.`});}
+  if(c.lead.n>=2&&c.lead.blown.length)c.ch.push({w:1.5+2*c.lead.blown.length,text:`Sie geben Führungen ab: ${c.lead.blown.length} von ${c.lead.n} Spielen mit mindestens ${CR_LEAD} Toren Vorsprung nicht gewonnen. Auch bei Rückstand nicht aufgeben.`});
+  if(c.def.n>=2&&c.def.back.length)c.hd.push({w:1.5+2*c.def.back.length,text:`Sie kommen zurück: ${c.def.back.length} von ${c.def.n} Spielen mit mindestens ${CR_LEAD} Toren Rückstand noch gepunktet. Eine Führung nicht verwalten.`});
+  return c;
+}
+/* erfasste Szenen in die Form der Spielbericht-Ereignisse bringen (nur für die Crunch-Time-Auswertung) */
+function liveCompact(){const ht=(S.cfg.halfLen||25)*60,sd=s=>s==='H'?'heim':'gast',ev=[{t:ht,k:'half'}];
+  for(const e of S.events){if(e.t==null)continue;if(e.type==='pos'){if(e.result==='tor')ev.push({t:e.t,k:e.start==='7m'?'goal7':'goal',team:sd(e.side),nr:e.player});else if(e.start==='7m'&&SHOT.includes(e.result))ev.push({t:e.t,k:'miss7',team:sd(e.side),nr:e.player});}
+    else if(e.type==='pen')ev.push({t:e.t,k:e.dq?'dq':'pen',team:sd(e.team)});}
+  return{ev};}
 function repAnalysis(r){
   const H=r.heim,G=r.gast,ev=(r.ev||[]).slice().sort((a,b)=>a.t-b.t),T={heim:H.team,gast:G.team},o=s=>s==='heim'?'gast':'heim';
   const he=ev.find(e=>e.k==='half'),ht=he?he.t:(S.cfg.halfLen||25)*60,end=Math.max(2*ht,...ev.map(e=>e.t));
@@ -3062,8 +3121,17 @@ function repAnalysis(r){
     const s=d>0?'heim':'gast';if(Math.abs(d)>maxL[s]){maxL[s]=Math.abs(d);maxAt[s]=e.t;}}
   if(win&&maxL[o(win)]>=3)add(7+maxL[o(win)],win,'Aufholjagd',`${T[o(win)]} führte zwischenzeitlich mit ${maxL[o(win)]} Toren (${mm(maxAt[o(win)])} Minute), ${T[win]} hat das Spiel gedreht.`);
   if(changes>=3)add(3,null,'Offenes Spiel',`${changes} Führungswechsel.`);
-  /* Schlussphase */
-  if(diff<=3){const L10=goals.filter(e=>e.t>end-600),a=L10.filter(e=>e.team==='heim').length,b=L10.length-a;if(a!==b)add(4+Math.abs(a-b),a>b?'heim':'gast','Schlussphase',`Letzte 10 Minuten ${a}:${b}.`);}
+  /* Crunch-Time */
+  {let C=null;try{C=crunchGame(r);}catch(e){}
+    if(C){const x=C.heim,[a,b]=x.l5,s=a>b?'heim':a<b?'gast':null,ex=[];
+      if(x.close5){if(x.close2)ex.push(`2 Minuten vor Schluss stand es ${C.s2[0]}:${C.s2[1]}, danach ${x.l2[0]}:${x.l2[1]}.`);
+        for(const q of ['heim','gast']){const y=C[q];if(y.g7+y.m7)ex.push(`${T[q]} in dieser Phase 7m ${y.g7}/${y.g7+y.m7}.`);if(y.pens)ex.push(`${y.pens}× Zeitstrafe gegen ${T[q]} in den letzten 5 Minuten.`);}
+        add(5+Math.abs(a-b)+(diff<=2?1:0),s,'Crunch-Time: enge Schlussphase',`5 Minuten vor Schluss stand es ${C.s5[0]}:${C.s5[1]}. Die letzten 5 Minuten ${s?`gingen ${a}:${b} an ${T[s]}`:`endeten ${a}:${b}`}.${ex.length?' '+ex.join(' '):''}`);}
+      else if(diff<=3){const L10=goals.filter(e=>e.t>end-600),a2=L10.filter(e=>e.team==='heim').length,b2=L10.length-a2;if(a2!==b2)add(4+Math.abs(a2-b2),a2>b2?'heim':'gast','Schlussphase',`Letzte 10 Minuten ${a2}:${b2}.`);}
+      if(C.dec){const e=C.dec.e;add(6.5,C.dec.kind==='lead'?e.team:null,C.dec.kind==='lead'?'Crunch-Time: Siegtreffer kurz vor Schluss':'Crunch-Time: später Ausgleich',`${T[e.team]}: ${e.nr!=null?nm(e.team,e.nr)+' ':''}traf in der ${mm(e.t)} Minute zum ${C.dec.h}:${C.dec.g}.`);}
+      for(const q of ['heim','gast']){const y=C[q];
+        if(y.blown&&!win)add(6+y.maxLead/2,o(q),`Crunch-Time: ${T[q]} verspielt Führung`,`${T[q]} führte in der ${mm(y.tLead)} Minute mit ${y.maxLead} Toren, am Ende nur ein Unentschieden.`);
+        else if(y.scare)add(3+y.maxLead/3,null,`Crunch-Time: ${T[q]} zittert sich ins Ziel`,`Aus ${y.maxLead} Toren Vorsprung (${mm(y.tLead)} Minute) wurde zwischenzeitlich ${y.minAfter<=0?'ein Gleichstand oder Rückstand':'nur noch 1 Tor'}, am Ende ${y.fin} Tor${y.fin===1?'':'e'} Vorsprung.`);}}}
   /* Torschützen: Verteilung, Schlüsselspieler, Ausreißer gegenüber dem Saisonschnitt */
   let tab=[];try{tab=leagueTable();}catch(e){}
   for(const s of ['heim','gast']){const X=s==='heim'?H:G,ro=(X.roster||[]),gf=X.gf,sc=ro.filter(p=>p.tore>0).sort((a,b)=>b.tore-a.tore);
@@ -3245,6 +3313,7 @@ function scoutReportData(t,cx){
   const home=D.filter(x=>x.hg==='heim'),away=D.filter(x=>x.hg==='gast'),pts=L=>L.reduce((s,x)=>s+(x.res==='S'?2:x.res==='U'?1:0),0);
   if(home.length&&away.length&&Math.abs(pts(home)/home.length-pts(away)/away.length)>=0.8)key.push({d:1.2,text:`${pts(home)/home.length>pts(away)/away.length?'Heimstark':'Auswärts stärker'}: zu Hause ${pts(home)}:${2*home.length-pts(home)} Punkte, auswärts ${pts(away)}:${2*away.length-pts(away)}.`});
   key.sort((a,b)=>b.d-a.d);
+  let cr=null;try{cr=crunchTeam(t);}catch(e){}
   /* Chancen und Herausforderungen aus unserer Sicht */
   const ch=[],hd=[],ours=isOurTeam(t.name);
   if(!ours||(cx&&cx.usProg)){let F0=null;try{F0=cx&&cx.asOf?progFit(progMatches().filter(m=>okDk(m.dk)&&m.dk<cx.asOf)):progModel();}catch(e){}const me=F0&&F0.teams.get(F0.find((cx&&cx.usProg)||S.cfg.schedName||S.cfg.nameH)||''),th=F0&&F0.teams.get(F0.find(t.name)||'');
@@ -3269,8 +3338,9 @@ function scoutReportData(t,cx){
     const gx=cx===undefined?scoutCtx(t.name,false):cx;if(gx){const weAreHome=gx.weHome;const away=D.filter(x=>x.hg==='gast'),home=D.filter(x=>x.hg==='heim');
       if(weAreHome&&away.length>=2){const p=away.reduce((s,x)=>s+(x.res==='S'?2:x.res==='U'?1:0),0);if(p/away.length<0.8)ch.push({w:1.5,text:`Wir spielen zu Hause, und auswärts holen sie wenig (${p}:${2*away.length-p} Punkte).`});}
       if(!weAreHome&&home.length>=2){const p=home.reduce((s,x)=>s+(x.res==='S'?2:x.res==='U'?1:0),0);if(p/home.length>=1.5)hd.push({w:1.5,text:`Auswärtsspiel bei einem heimstarken Team (${p}:${2*home.length-p} Punkte zu Hause).`});}}
+    if(cr){ch.push(...cr.ch);hd.push(...cr.hd);}
     ch.sort((a,b)=>b.w-a.w);hd.sort((a,b)=>b.w-a.w);}
-  return{D,W,Lo,A,key,cmp,ch,hd,top,ours};
+  return{D,W,Lo,A,key,cmp,ch,hd,top,ours,cr};
 }
 function scoutReportSheet(name,fromPrep,cxIn){
   let t=leagueTable().find(x=>matchTeam(x.name,name));if(!t){toast('Keine Daten zu diesem Team');return;}
@@ -3287,6 +3357,8 @@ function scoutReportSheet(name,fromPrep,cxIn){
     <h3>Key Points: Wann gewinnen sie, wann nicht?</h3>
     ${R.W.length&&R.Lo.length?(R.key.length?R.key.slice(0,6).map(x=>`<div class="find info"><span>${esc(x.text)}</span></div>`).join(''):'<p class="pending">Zwischen Siegen und Niederlagen gibt es bisher keine deutlichen Unterschiede.</p>'):`<p class="pending">${!R.Lo.length?'Bisher keine Niederlage':'Bisher kein Sieg'}, ein Vergleich ist noch nicht möglich.</p>`}
     <div class="tw"><table><thead><tr><th></th><th class="r">in Siegen (${R.W.length})</th><th class="r">in Niederlagen (${R.Lo.length})</th></tr></thead><tbody>${R.cmp.filter(c=>c.w!=null||c.l!=null).map(c=>`<tr><td>${esc(c.lab)}</td><td class="r num">${c.fmtv(c.w)}</td><td class="r num">${c.fmtv(c.l)}</td></tr>`).join('')}</tbody></table></div>
+    <h3>Crunch-Time: Wie reagieren ${R.ours?'wir':'sie'} in entscheidenden Phasen?</h3>
+    ${R.cr&&R.cr.lines.length?R.cr.lines.map(x=>`<div class="find info"><span>${esc(x)}</span></div>`).join('')+(R.cr.n<R.D.length?`<p class="pending">Schlussphasen, Führungen und Rückstände aus ${R.cr.n} von ${R.D.length} Spielen (nur mit Spielbericht).</p>`:''):'<p class="pending">Noch keine Daten.</p>'}
     ${A.players.some(p=>p.name)?'<h3>Torschützen</h3>':''}<div class="tw"${A.players.some(p=>p.name)?'':' hidden'}><table><thead><tr><th>Nr.</th><th>Name</th><th class="r">Sp</th><th class="r">Tore</th><th class="r">Ø</th><th class="r">7m</th></tr></thead><tbody>${A.players.filter(p=>p.name).slice(0,10).map(p=>`<tr><td class="num">${p.nr}</td><td>${esc(p.name)}</td><td class="r num">${p.games}</td><td class="r num">${p.tore}</td><td class="r num">${f1(p.tore/p.games)}</td><td class="r num">${p.a7?p.g7+'/'+p.a7:'–'}</td></tr>`).join('')}</tbody></table></div>
     <h3>Alle Spiele</h3><div class="tw"><table><thead><tr><th>Datum</th><th>Gegner</th><th class="r">Ergebnis</th><th class="r">HZ</th><th class="r">2 Min</th><th>Bester Werfer</th></tr></thead><tbody>${R.D.map(x=>`<tr><td class="num">${esc(x.g.datum||'')}</td><td>${x.g.hg==='heim'?'gegen':'bei'} ${esc(x.g.gegner)}</td><td class="r num">${res(x)}</td><td class="r num">${x.h1f!=null?x.h1f+':'+x.h1a:'–'}</td><td class="r num">${x.pens??'–'}</td><td>${x.top?esc(x.top.name)+' '+x.top.tore:'–'}</td></tr>`).join('')}</tbody></table></div>
     <p class="pending">Berechnet aus den eingelesenen Spielberichten und Ergebnissen. Je mehr Berichte, desto belastbarer.</p></div>
@@ -3325,6 +3397,8 @@ async function scoutPdfBlob(t,cx){
   if(R.W.length&&R.Lo.length){(R.key.length?R.key.slice(0,6):[{text:'Zwischen Siegen und Niederlagen gibt es bisher keine deutlichen Unterschiede.'}]).forEach(x=>bullet(x.text));}
   else txt(!R.Lo.length?'Bisher keine Niederlage, ein Vergleich ist noch nicht möglich.':'Bisher kein Sieg, ein Vergleich ist noch nicht möglich.');
   const cm=R.cmp.filter(c=>c.w!=null||c.l!=null);if(cm.length){y+=1;table(['',`in Siegen (${R.W.length})`,`in Niederlagen (${R.Lo.length})`],cm.map(c=>[c.lab,c.fmtv(c.w),c.fmtv(c.l)]),[96,41,41],[0,1,1]);}
+  h3(`Crunch-Time: Wie reagieren ${R.ours?'wir':'sie'} in entscheidenden Phasen?`);
+  if(R.cr&&R.cr.lines.length){R.cr.lines.forEach(x=>bullet(x,[90,98,112]));if(R.cr.n<R.D.length)txt(`Schlussphasen, Führungen und Rückstände aus ${R.cr.n} von ${R.D.length} Spielen (nur mit Spielbericht).`,{size:8.5,color:[90,98,112]});}else txt('Noch keine Daten.');
   const P=A.players.filter(p=>p.name).slice(0,10);if(P.length){h3('Torschützen');table(['Nr.','Name','Sp','Tore','Ø','7m'],P.map(p=>[p.nr,p.name,p.games,p.tore,f1(p.tore/p.games),p.a7?p.g7+'/'+p.a7:'–']),[12,86,18,20,20,22],[0,0,1,1,1,1]);}
   h3('Alle Spiele');table(['Datum','Gegner','Ergebnis','HZ','2 Min','Bester Werfer'],R.D.map(x=>[x.g.datum||'',(x.g.hg==='heim'?'gegen ':'bei ')+x.g.gegner,x.g.gf+':'+x.g.ga,x.h1f!=null?x.h1f+':'+x.h1a:'–',x.pens??'–',x.top?x.top.name+' '+x.top.tore:'–']),[22,62,20,16,16,42],[0,0,1,1,1,0]);
   txt('Berechnet aus den eingelesenen Spielberichten und Ergebnissen. Nur für den internen Gebrauch, enthält Daten von Minderjährigen.',{size:8,color:[90,98,112]});
