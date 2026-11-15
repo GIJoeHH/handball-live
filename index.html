@@ -543,6 +543,8 @@ html.capfull #view-erfassen .pcard .players.small .btn{min-height:32px}
 html.capfull #view-erfassen .score .team .tn{max-width:7.5em}
 
 html.capfull #toAnaRep{display:none}
+
+.benchb{margin:2px 2px 2px 0}.benchb.on{background:#245fa8;color:#fff;border-color:#245fa8}
 </style>
 
 </head>
@@ -723,7 +725,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='60';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='61';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1566,7 +1568,7 @@ function renderPrep(){leagueTable._c=null;
   </section>
   </div><div class="pcol">
   <section class="card"><h2 class="ch">${logoImg(c.nameG,'md')}Gegner${['Gegner','Beispielgegner'].includes(c.nameG)?'':': '+esc(c.nameG)}${(g.typ||'liga')!=='liga'?` <span class="st diff">${TYP_LABEL[g.typ]}</span>`:''}${(()=>{const e=oppEntry(c.nameG);return e&&okUrl(e.url)?' '+linkBtn(e.url,'Teamspielplan öffnen','inline'):'';})()}${!['Gegner','Beispielgegner'].includes(c.nameG)&&leagueTable().some(x=>matchTeam(x.name,c.nameG))?` <button class="tool primary inline" data-screp="${esc(c.nameG)}" data-prep>Scouting-Bericht (PDF)</button>`:''}</h2>
-    ${oppSelectHTML()}${oppInfoHTML()}${['Gegner','Beispielgegner'].includes(c.nameG)?'':stoppedGamesHTML(c.nameG)+oppFindHTML(c.nameG)}${(()=>{if((g.typ||'liga')!=='liga'||['Gegner','Beispielgegner'].includes(c.nameG))return '';const ng=nextGameVs(c.nameG);if(!ng)return '';const p=progFor(progModel(),ng.home,ng.away);if(!p)return '';
+    ${oppSelectHTML()}${oppInfoHTML()}${['Gegner','Beispielgegner'].includes(c.nameG)?'':stoppedGamesHTML(c.nameG)+oppFindHTML(c.nameG)}${(()=>{if((g.typ||'liga')!=='liga'||['Gegner','Beispielgegner'].includes(c.nameG))return '';const ng=nextGameVs(c.nameG);if(!ng)return '';const p=progFor(progModel(),ng.home,ng.away);if(!p)return '';fcKeep(p,dkOfDate(ng.date));
       const us=isOurTeam(ng.home)?'h':'a',win=us==='h'?p.pH:p.pA,lose=us==='h'?p.pA:p.pH;
       return `<div class="find ${win>=.6?'good':lose>=.6?'warn':'info'}"><span><b>Prognose ${esc(ng.home)} – ${esc(ng.away)}: ≈ ${progShort(p)}</b> · Sieg für uns ${pctR(win)}, Unentschieden ${pctR(p.pD)}, Niederlage ${pctR(lose)}. <button class="mini" data-prog="${esc(ng.home+'|'+ng.away)}">Details</button></span></div>`;})()}
     <div class="label"><span>Abwehrsystem</span></div>
@@ -1692,7 +1694,7 @@ function analyze(){
   {/* Gegenspieler mit ihrem Saisonschnitt aus den Spielberichten vergleichen */
     const R0=S.report,oppSide=ourTeam()==='heim'?'gast':'heim',sv=seasonPlayersOf(S.cfg.nameG,R0&&R0.meta&&R0.meta.nr);
     let got=null,present=null;
-    if(R0&&R0.roster&&R0.roster[oppSide]&&R0.roster[oppSide].length){got=new Map(R0.roster[oppSide].map(p=>[pkey(p.name||'#'+p.nr),p.tore||0]));present=new Set(got.keys());}
+    if(R0&&R0.roster&&R0.roster[oppSide]&&R0.roster[oppSide].length){{const bnr=R0.meta.nr||((R0.meta.datum||'')+'|'+R0.meta.heim);got=new Map(R0.roster[oppSide].filter(p=>!isBench(bnr,p.name)).map(p=>[pkey(p.name||'#'+p.nr),p.tore||0]));}present=new Set(got.keys());}
     else if(posEv().length>=30&&B.g>=10){got=new Map();present=new Set();for(const p of S.cfg.rosterG){const k=pkey(p.name||'#'+p.nr);present.add(k);got.set(k,cnt[p.nr]||0);}}
     if(sv&&got){const keyNr=new Set(S.game.key.map(k=>k.nr));const hits=[];
       for(const p of sv.players){const k=pkey(p.name||'');if(!present.has(k))continue;const g=got.get(k)||0;if(!isStopped(p.avg,g))continue;
@@ -1809,7 +1811,7 @@ function progCompareHTML(r,us){
   const ex={heim:P.eh,gast:P.ea},act={heim:r.heim.gf,gast:r.gast.gf},pr={heim:P.pH,gast:P.pA},actRes=act.heim>act.gast?'heim':act.heim<act.gast?'gast':'draw';
   const pAct=actRes==='draw'?P.pD:pr[actRes],devA=act[us]-ex[us],devD=ex[them]-act[them],devT=devA+devD,F=progModel();
   const rd=v=>(v>0?'+':'')+f1(v),R0=Math.round;
-  let h=head+`<div class="find ${pAct<0.25?'warn':'info'}"><span><b>Vorher erwartet: ${esc(T.heim)} ${R0(ex.heim)}:${R0(ex.gast)} ${esc(T.gast)}</b> (Sieg ${esc(T[us])} ${pctR(pr[us])}, Unentschieden ${pctR(P.pD)}, Sieg ${esc(T[them])} ${pctR(pr[them])}). <b>Tatsächlich: ${act.heim}:${act.gast}.</b> ${pAct<0.25?`Das war eine Überraschung: Die Prognose gab diesem Ausgang nur ${pctR(pAct)}.`:pAct>=0.6?'Der Ausgang entsprach der Prognose.':`Der Ausgang war möglich, aber nicht der wahrscheinlichste (${pctR(pAct)}).`}</span></div>`;
+  let h=head+`<div class="find ${pAct<0.25?'warn':'info'}"><span><b>Vorher erwartet: ${esc(T.heim)} ${R0(ex.heim)}:${R0(ex.gast)} ${esc(T.gast)}</b> (Sieg ${esc(T[us])} ${pctR(pr[us])}, Unentschieden ${pctR(P.pD)}, Sieg ${esc(T[them])} ${pctR(pr[them])}; ${P.snap?'so angezeigt am '+new Date(P.snap).toLocaleDateString('de-DE'):'nachträglich berechnet aus den Ergebnissen vor dem Spiel, ohne gemeldete Ausfälle'}). <b>Tatsächlich: ${act.heim}:${act.gast}.</b> ${pAct<0.25?`Das war eine Überraschung: Die Prognose gab diesem Ausgang nur ${pctR(pAct)}.`:pAct>=0.6?'Der Ausgang entsprach der Prognose.':`Der Ausgang war möglich, aber nicht der wahrscheinlichste (${pctR(pAct)}).`}</span></div>`;
   const diffs=[{k:'Angriff '+T[us],v:devA,txt:`${act[us]} Tore statt erwartet ${f1(ex[us])} (${rd(devA)})`},{k:'Abwehr '+T[us],v:devD,txt:`${act[them]} Gegentore statt erwartet ${f1(ex[them])} (${devD>=0?rd(devD)+' besser':rd(devD)+' schlechter'})`}].sort((a,b)=>Math.abs(b.v)-Math.abs(a.v));
   h+=`<div class="tw"><table><thead><tr><th>Größte Unterschiede</th><th></th></tr></thead><tbody>${diffs.map(d=>`<tr><td>${esc(d.k)}</td><td class="${d.v>=2?'win':d.v<=-2?'loss':''}">${esc(d.txt)}</td></tr>`).join('')}<tr><td><b>Tordifferenz</b></td><td class="${devT>=2?'win':devT<=-2?'loss':''}"><b>${rd(act[us]-act[them])} statt erwartet ${rd(ex[us]-ex[them])} (${rd(devT)})</b></td></tr></tbody></table></div>`;
   /* mögliche Gründe aus der Spielbericht-Analyse */
@@ -2046,6 +2048,8 @@ function causeSection(){
 /* ---------- Reiter 4: Statistik (Liga aus Spielberichten + eigene App-Daten) ---------- */
 let statTeam=null;
 function hbLocal(d){const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?(?:\+00:00|Z)$/.exec(d||'');return m?new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]).toISOString():d;}
+/* Nicht eingesetzt: Spieler stand im Spielbericht, saß aber nur auf der Bank. Er zählt für dieses Spiel nicht mit. */
+function isBench(nr,name,st){const e=((((st||S).league||{}).bench||{})[nr]||{})[pkey(name||'')];return !!(e&&e.on);}
 function leagueState(){if(!S.league)S.league={url:'',updated:null,reports:{}};const L=S.league;
   if(L.games&&!L.tzfix){for(const g of Object.values(L.games))if(/\+00:00$/.test(g.date||''))g.date=hbLocal(g.date);L.tzfix=1;}return L;}
 function addToLeague(R){leagueTable._c=null;
@@ -2085,10 +2089,10 @@ function leagueTable0(){
   for(const r of Object.values(leagueState().reports))for(const side of ['heim','gast']){
     const x0=r[side];if(!x0||!x0.team)continue;const o=off[r.nr];
     const x=o?{...x0,gf:side==='heim'?o.hs:o.as,ga:side==='heim'?o.as:o.hs}:x0;
-    const t=team(x.team);book(t,x.gf,x.ga);
-    t.games.push({...x,datum:r.datum,dk:r.dk,spieltag:r.spieltag||(codeRound(r.nr)||{}).round||null,nr:r.nr});
+    const t=team(x.team);book(t,x.gf,x.ga);const xr=(x.roster||[]).filter(p=>!isBench(r.nr,p.name));
+    t.games.push({...x,roster:xr,datum:r.datum,dk:r.dk,spieltag:r.spieltag||(codeRound(r.nr)||{}).round||null,nr:r.nr});
     const penEv=(r.ev||[]).filter(e=>(e.k==='pen'||e.k==='dq')&&e.team===side);
-    for(const p of x.roster||[]){const pk=p.name?normT(p.name):'#'+p.nr;const pp=t.P[pk]||(t.P[pk]={name:p.name,nr:p.nr,dk:'',games:0,tore:0,g7:0,a7:0,best:0,pens:0});
+    for(const p of xr){const pk=p.name?normT(p.name):'#'+p.nr;const pp=t.P[pk]||(t.P[pk]={name:p.name,nr:p.nr,dk:'',games:0,tore:0,g7:0,a7:0,best:0,pens:0});
       pp.games++;pp.tore+=p.tore;pp.pens=(pp.pens||0)+penEv.filter(e=>e.nr===p.nr).length;const [g7,a7]=parseM7(p.m7);pp.g7+=g7;pp.a7+=a7;pp.best=Math.max(pp.best,p.tore);if(r.dk>=pp.dk){pp.dk=r.dk;pp.nr=p.nr;}}
   }
   const pairs=Object.values(T).flatMap(t=>t.games.filter(x=>x.hg==='heim').map(x=>[x.team,x.gegner]));
@@ -2515,7 +2519,7 @@ function isFresh(st){st=st||{};return !(st.archive||[]).length&&!Object.keys(((s
 function mergeState(loc,rem){
   if(isFresh(loc)&&!isFresh(rem))loc=Object.assign({},loc,{modAt:0});if(isFresh(rem)&&!isFresh(loc))rem=Object.assign({},rem,{modAt:0});
   const remNewer=(rem.modAt||0)>(loc.modAt||0),newer=remNewer?rem:loc,older=remNewer?loc:rem,out=JSON.parse(JSON.stringify(newer));
-  out.league=out.league||{url:'',updated:null,reports:{}};out.league.reports=Object.assign({},((older.league||{}).reports)||{},out.league.reports||{});out.league.cup=Object.assign({},((older.league||{}).cup)||{},out.league.cup||{});
+  out.league=out.league||{url:'',updated:null,reports:{}};out.league.reports=Object.assign({},((older.league||{}).reports)||{},out.league.reports||{});out.league.cup=Object.assign({},((older.league||{}).cup)||{},out.league.cup||{});{const ba=((older.league||{}).bench)||{},bb=out.league.bench||{},bo={};for(const nr of new Set([...Object.keys(ba),...Object.keys(bb)])){bo[nr]=Object.assign({},ba[nr]||{},bb[nr]||{});for(const k of Object.keys(ba[nr]||{}))if((bb[nr]||{})[k]&&(ba[nr][k].at||0)>(bb[nr][k].at||0))bo[nr][k]=ba[nr][k];}if(Object.keys(bo).length)out.league.bench=bo;}{const fa=((older.league||{}).fc)||{},fb=out.league.fc||{},fo=Object.assign({},fa,fb);for(const k of Object.keys(fa))if(fb[k]&&(fa[k].at||0)>(fb[k].at||0))fo[k]=fa[k];if(Object.keys(fo).length)out.league.fc=fo;}
   if(!out.league.url&&older.league&&older.league.url)out.league.url=older.league.url;
   if(older.league)for(const k of Object.keys(older.league)){if(k==='reports')continue;const v=out.league[k],ov=older.league[k];const empty=v==null||v===''||(typeof v==='object'&&!Object.keys(v).length);if(empty&&ov!=null)out.league[k]=ov;}
   if(older.league&&older.league.sched&&out.league.sched&&typeof older.league.sched==='object')out.league.sched=Object.assign({},older.league.sched,out.league.sched);
@@ -2998,8 +3002,14 @@ async function reportSummary(code){
       ${progCompareHTML(r,isOurTeam(G.team)?'gast':'heim')}
       ${A.out.map(x=>`<div class="find ${x.side==='heim'?'rep-h':x.side==='gast'?'rep-g':'info'}"><span><b>${esc(x.title)}${x.side?` <small>· spricht für ${esc(r[x.side].team)}</small>`:''}</b> ${esc(x.text)}</span></div>`).join('')||'<p class="pending">Keine besonderen Auffälligkeiten.</p>'}`;})()}
     <h3>Torschützen</h3><div class="pending"><b>Torschützen ${esc(H.team)}:</b> ${scorers(H)}</div><div class="pending"><b>Torschützen ${esc(G.team)}:</b> ${scorers(G)}</div>
+    ${(()=>{const row=(x,side)=>{const L0=(x.roster||[]).map((p,i)=>({p,i})).filter(o=>o.p.name&&!o.p.tore);return L0.length?`<div class="pending"><b>${esc(x.team)}:</b> ${L0.map(o=>`<button class="mini benchb${isBench(code,o.p.name)?' on':''}" data-bench="${side}|${o.i}">${isBench(code,o.p.name)?'✓ ':''}Nr. ${o.p.nr} ${esc(o.p.name)}</button>`).join(' ')}</div>`:'';},h=row(H,'heim')+row(G,'gast'),any=[H,G].some(x=>(x.roster||[]).some(p=>isBench(code,p.name)));
+      return h?`<details class="pastebox noprint"${any?' open':''}><summary><b>Nicht eingesetzt</b> (saß nur auf der Bank)</summary><p class="pending">Spieler ohne Tor antippen, die im Spielbericht stehen, aber nicht gespielt haben. Sie zählen für dieses Spiel dann nicht mit: nicht „kaltgestellt“, kein Spiel im Saisonschnitt.</p>${h}</details>`:'';})()}
     ${r.ev?`<details class="pastebox"><summary><b>Alle Ereignisse</b></summary><div class="log">${ev.map(e=>`<div><span class="s ${e.team==='heim'?'H':e.team==='gast'?'G':'X'}"></span><span class="t num">${fmt(e.t)}</span><span>${e.st?'<b>'+esc(e.st)+'</b> · ':''}${label[e.k]||e.k}${e.team?' · '+esc(e.team==='heim'?H.team:G.team):''}${e.nr!=null?' · Nr. '+e.nr+' '+esc(nm(e.team,e.nr)):''}</span></div>`).join('')}</div></details>`:'<p class="pending">Den Spielverlauf zeigt die App, nachdem der Bericht einmal neu eingelesen wurde.</p>'}
     <div class="row">${pdf?'<button class="tool primary" id="rs_pdf">PDF öffnen</button>':'<span class="pending">PDF nicht auf diesem Gerät gespeichert (wird ab jetzt beim Einlesen gespeichert).</span>'}<button class="tool" data-close>Schließen</button></div>`);
+  $('sheet').querySelectorAll('[data-bench]').forEach(x=>x.onclick=()=>{const [side,i]=x.dataset.bench.split('|'),p=((r[side]||{}).roster||[])[+i];if(!p||!p.name)return;
+    const tmp=!((L.reports||{})[code]||(L.cup||{})[code]);L.bench=L.bench||{};const B=L.bench[code]||(L.bench[code]={}),k=pkey(p.name);B[k]={on:!(B[k]&&B[k].on),at:Date.now()};
+    save();try{render();}catch(e){}toast(B[k].on?p.name+': nicht eingesetzt':p.name+' zählt wieder mit');
+    if(tmp){L.cup=L.cup||{};L.cup[code]=r;reportSummary(code).then(()=>{delete L.cup[code];});}else reportSummary(code);});
   $('sheet').querySelectorAll('[data-scpast]').forEach(x=>x.onclick=()=>{const s=x.dataset.scpast,o=s==='heim'?'gast':'heim',d=/^(\d{4})(\d{2})(\d{2})/.exec(r.dk||'');
     scoutReportSheet(r[s].team,false,{typ:r.cup?'pokal':'liga',weHome:o==='heim',known:true,home:H.team,away:G.team,ph:H.team,pa:G.team,usProg:r[o].team,usLabel:isOurTeam(r[o].team)?null:r[o].team,datum:d?d[1]+'-'+d[2]+'-'+d[3]:'',zeit:'',halle:'',src:'past',asOf:okDk(r.dk)?r.dk:null,backNr:code});});
   if($('rs_apdf'))$('rs_apdf').onclick=async()=>{const btn=$('rs_apdf');btn.disabled=true;btn.textContent='PDF wird erstellt …';try{if(!window.jspdf)await loadScript(JSPDF_URL);
@@ -3134,7 +3144,7 @@ function repAnalysis(r){
         else if(y.scare)add(3+y.maxLead/3,null,`Crunch-Time: ${T[q]} zittert sich ins Ziel`,`Aus ${y.maxLead} Toren Vorsprung (${mm(y.tLead)} Minute) wurde zwischenzeitlich ${y.minAfter<=0?'ein Gleichstand oder Rückstand':'nur noch 1 Tor'}, am Ende ${y.fin} Tor${y.fin===1?'':'e'} Vorsprung.`);}}}
   /* Torschützen: Verteilung, Schlüsselspieler, Ausreißer gegenüber dem Saisonschnitt */
   let tab=[];try{tab=leagueTable();}catch(e){}
-  for(const s of ['heim','gast']){const X=s==='heim'?H:G,ro=(X.roster||[]),gf=X.gf,sc=ro.filter(p=>p.tore>0).sort((a,b)=>b.tore-a.tore);
+  for(const s of ['heim','gast']){const X=s==='heim'?H:G,ro=(X.roster||[]).filter(p=>!isBench(r.nr,p.name)),gf=X.gf,sc=ro.filter(p=>p.tore>0).sort((a,b)=>b.tore-a.tore);
     if(sc.length&&gf){const top=sc[0];if(top.tore/gf>=.4&&top.tore>=6)add(3+top.tore/3,null,`${T[s]}: ein Werfer dominiert`,`${nm(s,top.nr)} erzielte ${top.tore} von ${gf} Toren (${pct(top.tore,gf)}).`);
       if(sc.length>=8)add(2,null,`${T[s]}: Tore breit verteilt`,`${sc.length} verschiedene Torschützen.`);}
     const t=tab.find(x=>matchTeam(x.name,X.team));if(!t)continue;
@@ -3142,7 +3152,7 @@ function repAnalysis(r){
     const inGame=new Set(ro.map(p=>pkey(p.name||''))),inT=t.games.some(g=>g.nr===r.nr);
     for(const p of Object.values(t.P||{})){const g0=p.games-(inT&&inGame.has(pkey(p.name||''))?1:0),t0=p.tore-(inT?(ro.find(q=>pkey(q.name||'')===pkey(p.name||''))||{tore:0}).tore:0);
       if(g0<2)continue;const avg=t0/g0,share=t0/Math.max(1,others.reduce((s2,g)=>s2+g.gf,0));
-      if(!inGame.has(pkey(p.name||''))&&(avg>=4||share>=.15))add(4+avg/1.5,o(s),`Schlüsselspieler fehlte: ${T[s]}`,`${p.name} (sonst Ø ${f1(avg)} Tore in ${g0} Spielen) stand nicht im Kader.`);}
+      if(!inGame.has(pkey(p.name||''))&&(avg>=4||share>=.15))add(4+avg/1.5,o(s),`Schlüsselspieler fehlte: ${T[s]}`,`${p.name} (sonst Ø ${f1(avg)} Tore in ${g0} Spielen) ${isBench(r.nr,p.name)?'saß nur auf der Bank und wurde nicht eingesetzt':'stand nicht im Kader'}.`);}
     const played=[];
     for(const q of ro){const p=Object.values(t.P||{}).find(x=>pkey(x.name||'')===pkey(q.name||''));if(!p)continue;const g0=p.games-(inT?1:0),t0=p.tore-(inT?q.tore:0);if(g0<2)continue;const avg=t0/g0;played.push({q,avg});
       if(q.tore>=avg+4&&q.tore>=6)add(3+(q.tore-avg)/2,s,`${q.name}: Sahnetag`,`${q.tore} Tore, sonst Ø ${f1(avg)}.`);
@@ -3222,18 +3232,35 @@ function progWithBias(p,F,resid){if(!p)return p;const c=biasCorr(resid,p.h,p.a);
   return Object.assign(p,{eh,ea,d,corr:c,pD:normCdf((0.5-d)/s)-normCdf((-0.5-d)/s),pH:1-normCdf((0.5-d)/s),pA:normCdf((-0.5-d)/s)});}
 /* Prognose, wie sie vor einem Spiel gewesen wäre: nur Ergebnisse vor diesem Datum */
 const okDk=d=>/^\d{8}$/.test(d||'');
-function predictBefore(home,away,dk){if(!okDk(dk))return {why:'Für dieses Spiel ist kein Datum bekannt, deshalb keine Prognose von vorher.'};const M=progMatches().filter(m=>okDk(m.dk)&&m.dk<dk);if(M.length<6)return {why:'Vor diesem Spiel gab es noch zu wenige Ergebnisse für eine Prognose.'};
+function predictBefore(home,away,dk){if(!okDk(dk))return {why:'Für dieses Spiel ist kein Datum bekannt, deshalb keine Prognose von vorher.'};
+  const sn=fcFind(home,away,dk);if(sn)return{eh:sn.eh,ea:sn.ea,d:sn.eh-sn.ea,pH:sn.pH,pD:sn.pD,pA:sn.pA,h:sn.home,a:sn.away,snap:sn.at,corr:0,abH:[],abA:[]};
+  const M=progMatches().filter(m=>okDk(m.dk)&&m.dk<dk);if(M.length<6)return {why:'Vor diesem Spiel gab es noch zu wenige Ergebnisse für eine Prognose.'};
   const f=progFit(M,{ref:dkTime(dk)});let p=progFor(f,home,away,true);if(!p){const miss=[home,away].filter(t=>!f.find(t));return {why:miss.length?`Keine Prognose möglich: ${miss.join(' und ')} ${miss.length>1?'spielen':'spielt'} nicht in unserer Liga oder hatte vorher noch kein Spiel.`:'Keine Prognose möglich.'};}
-  const F=progModel();if(F&&F.biasOn)p=progWithBias(p,f,(F.resid||[]).filter(r=>r.dk<dk));return p;}
-function progModel(){const M=progMatches(),sig=M.length+'|'+M.map(m=>m.hs+':'+m.as+m.dk).join(',')+'|'+(pdb().modAt||0)+'|'+Object.keys(leagueState().reports||{}).length;if(progCache&&progCache.sig===sig)return progCache.F;progAbsCache=new Map();
-  const F=progFit(M);if(F){/* Rückblick: jedes Spiel nur mit den Ergebnissen davor vorhersagen; Abweichungen merken */let ok=0,n=0,ad=0,ok2=0,ad2=0;const resid=[];
-    for(let i=0;i<M.length;i++){if(!okDk(M[i].dk))continue;const prior=M.filter((x,j)=>j!==i&&okDk(x.dk)&&x.dk<M[i].dk);if(prior.length<6)continue;const f=progFit(prior,{ref:dkTime(M[i].dk)}),p=progFor(f,M[i].home,M[i].away,true);if(!p||p.nh<2||p.na<2)continue;
-      const act=M[i].hs-M[i].as,res=Math.sign(act),tipOf=d=>{const pD=normCdf((0.5-d)/f.sigma)-normCdf((-0.5-d)/f.sigma),pH=1-normCdf((0.5-d)/f.sigma),pA=normCdf((-0.5-d)/f.sigma);return pH>=pA&&pH>=pD?1:pA>=pD?-1:0;};
-      n++;if(tipOf(p.d)===res)ok++;ad+=Math.abs(act-p.d);
-      const c=biasCorr(resid.filter(r=>r.dk<M[i].dk),M[i].home,M[i].away),d2=p.d+c;if(tipOf(d2)===res)ok2++;ad2+=Math.abs(act-d2);
-      resid.push({home:M[i].home,away:M[i].away,dk:M[i].dk,act,pred:p.d,eh:p.eh,ea:p.ea,hs:M[i].hs,as:M[i].as});}
-    F.resid=resid;F.back={n,ok,ad:n?ad/n:null,ok2,ad2:n?ad2/n:null};F.biasOn=n>=10&&ad2<ad-0.05*n&&ok2>=ok;}
+  /* lernende Korrektur so, wie sie vor dem Spiel aktiv war (nicht nach heutigem Stand) */
+  progModel();let B=progBackCache.get(dk);if(!B){B=progBack(M);progBackCache.set(dk,B);}if(B.biasOn)p=progWithBias(p,f,B.resid);return p;}
+/* Rückblick: jedes Spiel nur mit den Ergebnissen davor vorhersagen; Abweichungen merken */
+function progBack(M){let ok=0,n=0,ad=0,ok2=0,ad2=0;const resid=[];
+  for(let i=0;i<M.length;i++){if(!okDk(M[i].dk))continue;const prior=M.filter((x,j)=>j!==i&&okDk(x.dk)&&x.dk<M[i].dk);if(prior.length<6)continue;const f=progFit(prior,{ref:dkTime(M[i].dk)}),p=progFor(f,M[i].home,M[i].away,true);if(!p||p.nh<2||p.na<2)continue;
+    const act=M[i].hs-M[i].as,res=Math.sign(act),tipOf=d=>{const pD=normCdf((0.5-d)/f.sigma)-normCdf((-0.5-d)/f.sigma),pH=1-normCdf((0.5-d)/f.sigma),pA=normCdf((-0.5-d)/f.sigma);return pH>=pA&&pH>=pD?1:pA>=pD?-1:0;};
+    n++;if(tipOf(p.d)===res)ok++;ad+=Math.abs(act-p.d);
+    const c=biasCorr(resid.filter(r=>r.dk<M[i].dk),M[i].home,M[i].away),d2=p.d+c;if(tipOf(d2)===res)ok2++;ad2+=Math.abs(act-d2);
+    resid.push({home:M[i].home,away:M[i].away,dk:M[i].dk,act,pred:p.d,eh:p.eh,ea:p.ea,hs:M[i].hs,as:M[i].as});}
+  return{resid,back:{n,ok,ad:n?ad/n:null,ok2,ad2:n?ad2/n:null},biasOn:n>=10&&ad2<ad-0.05*n&&ok2>=ok};}
+let progBackCache=new Map();
+function progModel(){const M=progMatches(),sig=M.length+'|'+M.map(m=>m.hs+':'+m.as+m.dk).join(',')+'|'+(pdb().modAt||0)+'|'+Object.keys(leagueState().reports||{}).length;if(progCache&&progCache.sig===sig)return progCache.F;progAbsCache=new Map();progBackCache=new Map();
+  const F=progFit(M);if(F){const B=progBack(M);F.resid=B.resid;F.back=B.back;F.biasOn=B.biasOn;}
   progCache={sig,F};return F;}
+/* Angezeigte Prognose für ein kommendes Spiel merken, damit die Analyse danach genau diesen Stand vergleicht */
+const fcToday=()=>{const d=new Date();return d.getFullYear()+String(d.getMonth()+1).padStart(2,'0')+String(d.getDate()).padStart(2,'0');};
+let fcTimer=null;
+function fcKeep(p,dk){try{if(!p||p.why||!okDk(dk)||dk<fcToday())return;const home=p.h,away=p.a;
+    if(progMatches().some(m=>m.dk===dk&&matchTeam(m.home,home)&&matchTeam(m.away,away)))return;
+    const L=leagueState();L.fc=L.fc||{};const k=normT(home)+'|'+normT(away)+'|'+dk,e=L.fc[k],r=v=>Math.round(v*100);
+    if(e&&r(e.eh)===r(p.eh)&&r(e.ea)===r(p.ea)&&r(e.pH)===r(p.pH))return;
+    L.fc[k]={home,away,dk,eh:p.eh,ea:p.ea,pH:p.pH,pD:p.pD,pA:p.pA,at:Date.now()};
+    for(const q of Object.keys(L.fc))if(dkTime(L.fc[q].dk)<Date.now()-400*864e5)delete L.fc[q];
+    clearTimeout(fcTimer);fcTimer=setTimeout(()=>{try{save();}catch(e){}},400);}catch(e){}}
+function fcFind(home,away,dk){const fc=(leagueState().fc)||{};for(const e of Object.values(fc))if(e&&e.dk===dk&&matchTeam(e.home,home)&&matchTeam(e.away,away))return e;return null;}
 const pctR=v=>Math.round(v*100)+' %';
 function progShort(p){if(!p)return '';const tip=p.pH>=p.pA?'heim':'gast';return `${Math.round(p.eh)}:${Math.round(p.ea)}`;}
 function progSheet(home,away){
@@ -3290,7 +3317,7 @@ function teamAsOf(t,dk){const G=t.games.filter(g=>okDk(g.dk)&&g.dk<dk),P={};let 
     for(const p of g.roster||[]){const pk=p.name?normT(p.name):'#'+p.nr,pp=P[pk]||(P[pk]={name:p.name,nr:p.nr,dk:'',games:0,tore:0,g7:0,a7:0,best:0,pens:0});const [g7,a7]=parseM7(p.m7);pp.games++;pp.tore+=p.tore||0;pp.g7+=g7;pp.a7+=a7;pp.best=Math.max(pp.best,p.tore||0);if((g.dk||'')>=pp.dk){pp.dk=g.dk||'';pp.nr=p.nr;}}}
   return Object.assign({},t,{games:G,sp:G.length,s,u,n:nn,gf,ga,pts:2*s+u,diff:gf-ga,P,asOf:dk});}
 function tableAsOf(dk){return sortLeague(leagueTable().map(t=>teamAsOf(t,dk)).filter(t=>t.sp));}
-function scoutCtxProg(t,cx){if(!cx)return null;const ours=cx.usProg||S.cfg.schedName||S.cfg.nameH,h=cx.ph||(cx.weHome?ours:t.name),a=cx.pa||(cx.weHome?t.name:ours);try{const p=cx.asOf?predictBefore(h,a,cx.asOf):progFor(progModel(),h,a);if(!p||p.why)return null;
+function scoutCtxProg(t,cx){if(!cx)return null;const ours=cx.usProg||S.cfg.schedName||S.cfg.nameH,h=cx.ph||(cx.weHome?ours:t.name),a=cx.pa||(cx.weHome?t.name:ours);try{const p=cx.asOf?predictBefore(h,a,cx.asOf):progFor(progModel(),h,a);if(!p||p.why)return null;if(!cx.asOf&&cx.datum)fcKeep(p,cx.datum.replace(/-/g,''));
   return{p,win:cx.weHome?p.pH:p.pA,lose:cx.weHome?p.pA:p.pH,us:Math.round(cx.weHome?p.eh:p.ea),them:Math.round(cx.weHome?p.ea:p.eh)};}catch(e){return null;}}
 function scoutReportData(t,cx){
   const D=teamGamesDetail(t),W=D.filter(x=>x.res==='S'),Lo=D.filter(x=>x.res==='N'),A=teamAgg(t),key=[],cmp=[];
@@ -3524,7 +3551,7 @@ function pdbRefresh(){
     const s=seasonOfDk(r.dk);if(!s||seen.has(r.nr))continue;seen.add(r.nr);const rec=D.seasons[s];if(rec&&rec.closed)continue;
     const A=per[s]||(per[s]={});
     for(const side of ['heim','gast']){const x=r[side];if(!x||!x.team)continue;const pe=(r.ev||[]).filter(e=>(e.k==='pen'||e.k==='dq')&&e.team===side);
-      for(const p of x.roster||[]){if(!p.name)continue;const k=pkey(p.name)+'|'+normT(x.team);const [g7,a7]=parseM7(p.m7);
+      for(const p of x.roster||[]){if(!p.name||isBench(r.nr,p.name,st))continue;const k=pkey(p.name)+'|'+normT(x.team);const [g7,a7]=parseM7(p.m7);
         const q=A[k]||(A[k]={name:p.name,team:x.team,nr:p.nr,spiele:0,tore:0,best:0,dk:''});
         q.spiele++;q.tore+=p.tore||0;q.best=Math.max(q.best,p.tore||0);if((r.dk||'')>=q.dk){q.dk=r.dk||'';q.nr=p.nr;}}}}
   for(const s in per){const rec=seasonRec(s);const old=JSON.stringify(rec.auto||{}),nw=JSON.stringify(per[s]);if(old!==nw){rec.auto=per[s];rec.autoAt=Date.now();changed=true;}}
