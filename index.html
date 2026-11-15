@@ -725,7 +725,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='62';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='63';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -2192,7 +2192,7 @@ function renderStats(){leagueTable._c=null;
   document.querySelectorAll('[data-delrd]').forEach(b=>b.onclick=()=>{const v=b.dataset.delrd,L=leagueState(),ks=Object.keys(L.sched||{}).filter(k=>v==='none'?!L.sched[k].round&&!scheduleRows().some(r=>r.sk===k&&r.round):(L.sched[k].round===+v||scheduleRows().some(r=>r.sk===k&&r.round===+v)));
     openSheet(head('Termine löschen?')+`<p>${ks.length} eingefügte Termine ${v==='none'?'ohne Spieltag':'von Spieltag '+v} werden gelöscht. Eingelesene Spielberichte und Daten von handball.net bleiben erhalten.</p><div class="row"><button class="tool danger" id="dr_yes">Löschen</button><button class="tool" data-close>Abbrechen</button></div>`);
     $('dr_yes').onclick=()=>{ks.forEach(k=>delete L.sched[k]);save();closeSheet();toast(ks.length+' Termine gelöscht');};});
-  document.querySelectorAll('[data-steam]').forEach(b=>b.onclick=()=>{statTeam=statTeam===b.dataset.steam?null:b.dataset.steam;renderStats();});
+  document.querySelectorAll('[data-steam]').forEach(b=>b.onclick=()=>{statTeam=statTeam===b.dataset.steam?null:b.dataset.steam;renderStats();if(statTeam)setTimeout(()=>{const d=$('teamdet');if(d)d.scrollIntoView({behavior:'smooth',block:'start'});},30);});
   document.querySelectorAll('[data-adel]').forEach(b=>b.onclick=()=>{const i=+b.dataset.adel,g=S.archive[i];
     openSheet(head('Archiviertes Spiel löschen?')+`<p>${esc(g.nameH)} – ${esc(g.nameG)} (${esc(fmtDate(g.datum))}) wird mit allen Szenen gelöscht.</p><div class="row"><button class="tool danger" id="ad_yes">Löschen</button><button class="tool" data-close>Abbrechen</button></div>`);
     $('ad_yes').onclick=()=>{S.archive.splice(i,1);save();closeSheet();toast('Archiviertes Spiel gelöscht');};});
@@ -2202,17 +2202,27 @@ function renderStats(){leagueTable._c=null;
 function teamDetail(t,maxDay,games){
   const A=teamAgg(t),I=scoutInsights(A),miss=missingDays(t,maxDay),ours=isOurTeam(t.name);
   const oe=oppEntry(t.name);
-  let h=`<section class="card"><div class="sheethead"><h2 class="ch">${logoImg(t.name,'md')}${esc(t.name)}</h2><span class="row"><button class="tool primary" data-screp="${esc(t.name)}">Scouting-Bericht</button>${linkBtn(ours?linksOf().team:(oe&&oe.url),'Teamspielplan öffnen')}${ours?'':'<button class="tool" id="st_prep">Als nächsten Gegner vorbereiten</button>'}</span></div>
-    <div class="facts"><div class="fact"><small>Bilanz</small><b>${t.s} S, ${t.u} U, ${t.n} N · ${ptsStr(t)} Punkte</b></div>
+  /* wichtigste Kennzahlen auf einen Blick */
+  const pos=sortLeague(leagueTable()).findIndex(x=>normT(x.name)===normT(t.name))+1,pp=L=>{const p=L.reduce((s,g)=>s+(g.gf>g.ga?2:g.gf===g.ga?1:0),0);return L.length?`${p}:${2*L.length-p}`:'–';};
+  const gs=t.games.slice().sort((a,b)=>(a.dk||'').localeCompare(b.dk||'')),form=gs.slice(-5).map(g=>`<span class="st ${g.gf>g.ga?'ok':g.gf<g.ga?'miss':''}">${g.gf}:${g.ga}</span>`).join(' ');
+  let cr=null,st=null;try{cr=crunchTeam(t);}catch(e){}try{const F=progModel(),k=F&&F.find(t.name);st=k?F.teams.get(k):null;}catch(e){}
+  const top=A.players.filter(p=>p.name&&p.games)[0],kz=v=>v.toFixed(2).replace('.',',');
+  const extra1=`<div class="fact"><small>Tabellenplatz</small><b>${pos||'–'}</b></div>`,extra=`<div class="fact"><small>Punkte zu Hause · auswärts</small><b class="num">${pp(t.games.filter(g=>g.hg==='heim'))} · ${pp(t.games.filter(g=>g.hg==='gast'))}</b></div>
+      <div class="fact"><small>Letzte Spiele</small><b>${form||'–'}</b></div>
+      ${cr&&cr.tight.n?`<div class="fact"><small>Enge Spiele (bis 2 Tore)</small><b>${cr.tight.s} S, ${cr.tight.u} U, ${cr.tight.nn} N</b></div>`:''}
+      ${st?`<div class="fact"><small>Stärke Angriff · Abwehr (Liga = 1,00)</small><b class="num">${kz(st.att)} · ${kz(st.def)}</b></div>`:''}
+      ${top?`<div class="fact"><small>Bester Werfer</small><b>${plink(top.name,t.name)} · Ø ${f1(top.tore/top.games)}</b></div>`:''}`;
+  let h=`<section class="card" id="teamdet"><div class="sheethead"><h2 class="ch">${logoImg(t.name,'md')}${esc(t.name)}</h2><span class="row"><button class="tool primary" data-screp="${esc(t.name)}">Scouting-Bericht</button>${linkBtn(ours?linksOf().team:(oe&&oe.url),'Teamspielplan öffnen')}${ours?'':'<button class="tool" id="st_prep">Als nächsten Gegner vorbereiten</button>'}</span></div>
+    <div class="facts">${extra1}<div class="fact"><small>Bilanz</small><b>${t.s} S, ${t.u} U, ${t.n} N · ${ptsStr(t)} Punkte</b></div>
       <div class="fact"><small>Ø Tore : Gegentore · Ø Diff</small><b class="num">${f1(A.gf)} : ${f1(A.ga)} · ${A.gf-A.ga>0?'+':''}${f1(A.gf-A.ga)}</b></div>
       <div class="fact"><small>Ø Tore 1. / 2. HZ</small><b class="num">${f1(A.h1)} / ${f1(A.h2)}</b></div>
       <div class="fact"><small>Ø Gegentore 1. / 2. HZ</small><b class="num">${f1(A.h1a)} / ${f1(A.h2a)}</b></div>
-      <div class="fact"><small>Ø Zeitstrafen · 7m</small><b class="num">${f1(A.pens)} · ${A.g7}/${A.a7}</b></div></div>
+      <div class="fact"><small>Ø Zeitstrafen · 7m</small><b class="num">${f1(A.pens)} · ${A.g7}/${A.a7}</b></div>${extra}</div>
     ${miss.length?`<div class="pending">Spieltage ohne Bericht: ${miss.join(', ')} (fehlt noch oder spielfrei)</div>`:''}
     ${I.map(([s,x])=>`<div class="find ${s}"><span>${esc(x)}</span></div>`).join('')}
     <div class="cols2"><div><h3>Spiele</h3><div class="tw"><table><thead><tr><th>ST</th><th>Datum</th><th>Gegner</th><th class="r">Ergebnis</th></tr></thead><tbody>
       ${t.games.map(g=>`<tr><td class="num">${g.spieltag||'–'}</td><td class="num">${esc(g.datum)}</td><td>${g.hg==='heim'?'gegen':'bei'} ${esc(g.gegner)}</td><td class="r num ${g.gf>g.ga?'win':g.gf<g.ga?'loss':''}">${g.nr&&leagueState().reports[g.nr]?`<button class="pbtn" data-rsum="${esc(g.nr)}">${g.gf}:${g.ga}</button>`:g.gf+':'+g.ga}</td></tr>`).join('')}</tbody></table></div></div>
-    <div><h3>Spieler und Tore</h3><div class="tw"><table><thead><tr><th>Nr.</th><th>Name</th><th class="r">Sp</th><th class="r">Tore</th><th class="r">Ø</th><th class="r">7m</th></tr></thead><tbody>
+    <div><h3>Spieler (antippen öffnet die Spielerdatenbank)</h3><div class="tw"><table><thead><tr><th>Nr.</th><th>Name</th><th class="r">Sp</th><th class="r">Tore</th><th class="r">Ø</th><th class="r">7m</th></tr></thead><tbody>
       ${A.players.filter(p=>p.name||p.tore).map(p=>`<tr><td class="num">${p.nr}</td><td>${plink(p.name,t.name)}</td><td class="r num">${p.games}</td><td class="r num">${p.tore}</td><td class="r num">${f1(p.tore/p.games)}</td><td class="r num">${p.a7?p.g7+'/'+p.a7:'–'}</td></tr>`).join('')||'<tr><td colspan="6" class="pending">Keine Spieler gelesen.</td></tr>'}</tbody></table></div></div></div>${cupGamesHTML(t.name)}`;
   if(!ours){
     const vs=games.filter(g=>matchTeam(g.nameG,t.name));
