@@ -725,7 +725,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='61';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='62';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -1336,7 +1336,8 @@ function reportSheet(){
       <button class="tool" id="r_only">Nur Kader und Gegnernamen übernehmen</button></div></div>
       <p class="pending">${posEv().length?`Beim Abgleich werden die ${score().h+score().g} erfassten Tore den ${G.length} Toren im Bericht zugeordnet. Danach siehst du alle Abweichungen und entscheidest, was übernommen wird.`:'Es sind noch keine Szenen erfasst. Das Grundgerüst legt alle Tore, 7m-Fehlwürfe und Zeitstrafen aus dem Bericht an. Wurfposition, Spielzug und Qualität kannst du danach nicht mehr live erfassen, aber die Torfolge und Torschützen stehen.'}</p>`;
   }
-  openSheet(h);
+  let bR=null;if(R&&(isOurTeam(R.meta.heim)||isOurTeam(R.meta.gast))){try{bR=repCompact(R);h+=benchBoxHTML(bR,bR.nr,true,'Nicht eingesetzte Spieler erfassen?');}catch(e){bR=null;}}
+  openSheet(h);if(bR)bindBench($('sheet'),bR,bR.nr,()=>reportSheet());
   $('r_file').onchange=async ev=>{const files=[...ev.target.files];if(files.length>1){readManyReports(files);return;}const f=files[0];if(!f)return;$('r_status').textContent='Lese Spielbericht …';
     try{const rep=await readPdf(f);if(!repGoals(rep).length&&!rep.roster.heim.length)throw new Error('Im PDF wurden weder Tore noch Kader gefunden. Ist es ein Spielbericht von handball.net?');
       S.report=rep;S.reportOurs=null;if(isCup(rep))addToCup(rep);else if(leagueGame()&&sameLeague(rep))addToLeague(rep);if(rep.meta.nr)pdfPut(rep.meta.nr,f);save();reportSheet();toast('Spielbericht gelesen');}
@@ -1839,7 +1840,7 @@ function anaFazitHTML(){const F=anaFazit();if(!F)return '';const T=x=>esc(F.r[x]
     ${repChartSVG(F.r,F.A)}
     <div class="cols2"><div><h3>Was für uns sprach</h3>${F.pro.slice(0,5).map(item).join('')||'<p class="pending">Keine deutlichen Pluspunkte in den Daten.</p>'}</div>
       <div><h3>Was gegen uns sprach</h3>${F.con.slice(0,5).map(item).join('')||'<p class="pending">Keine deutlichen Minuspunkte in den Daten.</p>'}</div></div>
-    ${A_neutral(F)}${progCompareHTML(F.r,F.us)}</section>`;}
+    ${A_neutral(F)}<div id="a_bench">${benchBoxHTML(F.r,F.r.nr)}</div>${progCompareHTML(F.r,F.us)}</section>`;}
 function A_neutral(F){const N=F.A.out.filter(x=>!x.side);return N.length?`<h3>Weitere Beobachtungen</h3>${N.slice(0,3).map(x=>`<div class="find info"><span><b>${esc(x.title)}</b> ${esc(x.text)}</span></div>`).join('')}`:'';}
 function renderAna(){leagueTable._c=null;
   const R=S.report,F=analyze(),g=S.game,sc=score(),ours=ourTeam();
@@ -1883,6 +1884,7 @@ function renderAna(){leagueTable._c=null;
   $('view-analyse').innerHTML=h;
   if($('a_fromrep'))$('a_fromrep').onclick=()=>{if(!S.report){reportSheet();return;}const ours=S.reportOurs||(isOurTeam(S.report.meta.heim)?'heim':isOurTeam(S.report.meta.gast)?'gast':(S.game.wir||guessOurTeam(S.report)));S.reportOurs=ours;buildSkeleton(S.report,ours);save();renderAna();toast('Analyse aus dem Spielbericht erstellt');};
   if($('a_notes'))$('a_notes').onchange=()=>{S.game.notes=$('a_notes').value;save();toast('Anmerkung gespeichert');};
+  if($('a_bench')&&S.report){const br=repCompact(S.report);bindBench($('a_bench'),br,br.nr,()=>render());}
   document.querySelectorAll('[data-rsumlive]').forEach(x=>x.onclick=()=>{const L=leagueState(),nr=S.report&&S.report.meta.nr;if(nr&&((L.reports||{})[nr]||(L.cup||{})[nr]))reportSummary(nr);else{L.cup=L.cup||{};const r=repCompact(S.report);const tmp=L.cup[r.nr];L.cup[r.nr]=r;reportSummary(r.nr).then(()=>{if(tmp)L.cup[r.nr]=tmp;else delete L.cup[r.nr];});}});
   if($('a_pdf'))$('a_pdf').onclick=()=>anaPdfSave();
   $('a_rep').onclick=()=>reportSheet();if($('a_rep2'))$('a_rep2').onclick=()=>reportSheet();$('a_data').onclick=dataSheet;$('a_causes').onclick=()=>causeSheet('offen');$('a_close').onclick=()=>{if(!posEv().length&&!S.report){toast('Noch keine Szenen erfasst und kein Spielbericht eingelesen');return;}confirmClose();};
@@ -2050,6 +2052,15 @@ let statTeam=null;
 function hbLocal(d){const m=/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::\d{2})?(?:\+00:00|Z)$/.exec(d||'');return m?new Date(+m[1],+m[2]-1,+m[3],+m[4],+m[5]).toISOString():d;}
 /* Nicht eingesetzt: Spieler stand im Spielbericht, saß aber nur auf der Bank. Er zählt für dieses Spiel nicht mit. */
 function isBench(nr,name,st){const e=((((st||S).league||{}).bench||{})[nr]||{})[pkey(name||'')];return !!(e&&e.on);}
+function benchBoxHTML(r,code,open,title){const row=(x,side)=>{const L0=((x||{}).roster||[]).map((p,i)=>({p,i})).filter(o=>o.p.name&&!o.p.tore);return L0.length?`<div class="pending"><b>${esc(x.team)}:</b> ${L0.map(o=>`<button class="mini benchb${isBench(code,o.p.name)?' on':''}" data-bench="${side}|${o.i}">${isBench(code,o.p.name)?'✓ ':''}Nr. ${o.p.nr} ${esc(o.p.name)}</button>`).join(' ')}</div>`:'';};
+  const us=isOurTeam((r.gast||{}).team)&&!isOurTeam((r.heim||{}).team)?['gast','heim']:['heim','gast'],h=us.map(s=>row(r[s],s)).join(''),any=['heim','gast'].some(s=>((r[s]||{}).roster||[]).some(p=>isBench(code,p.name)));
+  return h?`<details class="pastebox noprint"${open||any?' open':''}><summary><b>${title||'Nicht eingesetzt'}</b> (saß nur auf der Bank)</summary><p class="pending">Spieler ohne Tor antippen, die im Spielbericht stehen, aber nicht gespielt haben. Sie zählen für dieses Spiel dann nicht mit: nicht „kaltgestellt“, kein Spiel im Saisonschnitt.</p>${h}</details>`:'';}
+function bindBench(root,r,code,again){if(!root)return;root.querySelectorAll('[data-bench]').forEach(x=>x.onclick=()=>{const [side,i]=x.dataset.bench.split('|'),p=((r[side]||{}).roster||[])[+i];if(!p||!p.name)return;
+    const L=leagueState();L.bench=L.bench||{};const B=L.bench[code]||(L.bench[code]={}),k=pkey(p.name);B[k]={on:!(B[k]&&B[k].on),at:Date.now()};save();toast(B[k].on?p.name+': nicht eingesetzt':p.name+' zählt wieder mit');again&&again();});}
+/* Abfrage nach dem Einlesen von Berichten unserer Mannschaft: erscheint direkt unter der Statusmeldung */
+function benchAsk(list,after){if(!after||!list.length)return;let box=document.getElementById('bn_box');if(box)box.remove();box=document.createElement('div');box.id='bn_box';after.insertAdjacentElement('afterend',box);
+  const draw=()=>{box.innerHTML=`<h3>Nicht eingesetzte Spieler erfassen?</h3>`+list.map((r,i)=>`<div data-bn="${i}"><p class="pending"><b>${esc(r.heim.team)} ${esc(r.endstand||'')} ${esc(r.gast.team)}</b> · ${esc(r.datum||'')}</p>${benchBoxHTML(r,r.nr,list.length===1)||'<p class="pending">Keine Spieler ohne Tor in diesem Bericht.</p>'}</div>`).join('');
+    list.forEach((r,i)=>bindBench(box.querySelector(`[data-bn="${i}"]`),r,r.nr,()=>{const op=[...box.querySelectorAll('details')].map(d=>d.open);draw();[...box.querySelectorAll('details')].forEach((d,k)=>{if(op[k])d.open=true;});if(view==='statistik')renderStats();}));};draw();}
 function leagueState(){if(!S.league)S.league={url:'',updated:null,reports:{}};const L=S.league;
   if(L.games&&!L.tzfix){for(const g of Object.values(L.games))if(/\+00:00$/.test(g.date||''))g.date=hbLocal(g.date);L.tzfix=1;}return L;}
 function addToLeague(R){leagueTable._c=null;
@@ -2273,11 +2284,11 @@ function fetchSheet(){
       catch(e){bad.push(f.name);}}
     const G=ids.size;if(!G&&!T&&!SC){st.innerHTML='<span class="err">In der Datei wurden keine Spiele gefunden. Bitte die Seite von handball.net vollständig sichern (nicht nur als Text).</span>';return;}
     fetchSheet();toast(`${G} Spiele${SC?', '+SC+' Termine':''} und ${T} Teams übernommen${N?', '+N+' neue Gegner':''}${bad.length?' · '+bad.length+' Datei(en) nicht lesbar':''}`);if(view==='statistik')renderStats();};
-  $('fx_files').onchange=async ev=>{const files=[...ev.target.files];if(!files.length)return;const st=$('fx_status');let cup=0,upd=0,add=0,dup=0;const errs=[];
+  $('fx_files').onchange=async ev=>{const files=[...ev.target.files];if(!files.length)return;const st=$('fx_status');let cup=0,upd=0,add=0,dup=0;const errs=[],oursB=[];
     for(let i=0;i<files.length;i++){st.textContent=`Lese Bericht ${i+1} von ${files.length} …`;
-      try{const R=await readPdf(files[i]);if(!repGoals(R).length&&!R.roster.heim.length)throw new Error('kein Spielbericht erkannt');if(isCup(R)){cup++;addToCup(R);if(R.meta.nr)await pdfPut(R.meta.nr,files[i]);continue;}{const r=addToLeague(R);if(r==='upd')upd++;else if(r)add++;else dup++;if(R.meta.nr)await pdfPut(R.meta.nr,files[i]);}}catch(e){errs.push(files[i].name+': '+(e.message||e));}}
+      try{const R=await readPdf(files[i]);if(!repGoals(R).length&&!R.roster.heim.length)throw new Error('kein Spielbericht erkannt');if(isOurTeam(R.meta.heim)||isOurTeam(R.meta.gast))oursB.push(repCompact(R));if(isCup(R)){cup++;addToCup(R);if(R.meta.nr)await pdfPut(R.meta.nr,files[i]);continue;}{const r=addToLeague(R);if(r==='upd')upd++;else if(r)add++;else dup++;if(R.meta.nr)await pdfPut(R.meta.nr,files[i]);}}catch(e){errs.push(files[i].name+': '+(e.message||e));}}
     save();st.innerHTML=`<b>${add} neu</b>${upd?`, <b>${upd} korrigiert</b>`:''}, ${dup} schon vorhanden${cup?`, ${cup} Pokalspiel${cup>1?'e':''} nicht in die Tabelle`:''}${errs.length?`, <span class="err">${errs.length} nicht lesbar</span><br>${esc(errs.join(' · '))}`:''}`;
-    toast(`${add} Spielbericht${add===1?'':'e'} ergänzt${upd?', '+upd+' korrigiert':''}`);if(view==='statistik')renderStats();};
+    toast(`${add} Spielbericht${add===1?'':'e'} ergänzt${upd?', '+upd+' korrigiert':''}`);if(view==='statistik')renderStats();if(oursB.length)benchAsk(oursB,st);};
 }
 
 /* ---------- Reiter 5: Einstellungen · Team & Kader ---------- */
@@ -3002,14 +3013,10 @@ async function reportSummary(code){
       ${progCompareHTML(r,isOurTeam(G.team)?'gast':'heim')}
       ${A.out.map(x=>`<div class="find ${x.side==='heim'?'rep-h':x.side==='gast'?'rep-g':'info'}"><span><b>${esc(x.title)}${x.side?` <small>· spricht für ${esc(r[x.side].team)}</small>`:''}</b> ${esc(x.text)}</span></div>`).join('')||'<p class="pending">Keine besonderen Auffälligkeiten.</p>'}`;})()}
     <h3>Torschützen</h3><div class="pending"><b>Torschützen ${esc(H.team)}:</b> ${scorers(H)}</div><div class="pending"><b>Torschützen ${esc(G.team)}:</b> ${scorers(G)}</div>
-    ${(()=>{const row=(x,side)=>{const L0=(x.roster||[]).map((p,i)=>({p,i})).filter(o=>o.p.name&&!o.p.tore);return L0.length?`<div class="pending"><b>${esc(x.team)}:</b> ${L0.map(o=>`<button class="mini benchb${isBench(code,o.p.name)?' on':''}" data-bench="${side}|${o.i}">${isBench(code,o.p.name)?'✓ ':''}Nr. ${o.p.nr} ${esc(o.p.name)}</button>`).join(' ')}</div>`:'';},h=row(H,'heim')+row(G,'gast'),any=[H,G].some(x=>(x.roster||[]).some(p=>isBench(code,p.name)));
-      return h?`<details class="pastebox noprint"${any?' open':''}><summary><b>Nicht eingesetzt</b> (saß nur auf der Bank)</summary><p class="pending">Spieler ohne Tor antippen, die im Spielbericht stehen, aber nicht gespielt haben. Sie zählen für dieses Spiel dann nicht mit: nicht „kaltgestellt“, kein Spiel im Saisonschnitt.</p>${h}</details>`:'';})()}
+    ${benchBoxHTML(r,code)}
     ${r.ev?`<details class="pastebox"><summary><b>Alle Ereignisse</b></summary><div class="log">${ev.map(e=>`<div><span class="s ${e.team==='heim'?'H':e.team==='gast'?'G':'X'}"></span><span class="t num">${fmt(e.t)}</span><span>${e.st?'<b>'+esc(e.st)+'</b> · ':''}${label[e.k]||e.k}${e.team?' · '+esc(e.team==='heim'?H.team:G.team):''}${e.nr!=null?' · Nr. '+e.nr+' '+esc(nm(e.team,e.nr)):''}</span></div>`).join('')}</div></details>`:'<p class="pending">Den Spielverlauf zeigt die App, nachdem der Bericht einmal neu eingelesen wurde.</p>'}
     <div class="row">${pdf?'<button class="tool primary" id="rs_pdf">PDF öffnen</button>':'<span class="pending">PDF nicht auf diesem Gerät gespeichert (wird ab jetzt beim Einlesen gespeichert).</span>'}<button class="tool" data-close>Schließen</button></div>`);
-  $('sheet').querySelectorAll('[data-bench]').forEach(x=>x.onclick=()=>{const [side,i]=x.dataset.bench.split('|'),p=((r[side]||{}).roster||[])[+i];if(!p||!p.name)return;
-    const tmp=!((L.reports||{})[code]||(L.cup||{})[code]);L.bench=L.bench||{};const B=L.bench[code]||(L.bench[code]={}),k=pkey(p.name);B[k]={on:!(B[k]&&B[k].on),at:Date.now()};
-    save();try{render();}catch(e){}toast(B[k].on?p.name+': nicht eingesetzt':p.name+' zählt wieder mit');
-    if(tmp){L.cup=L.cup||{};L.cup[code]=r;reportSummary(code).then(()=>{delete L.cup[code];});}else reportSummary(code);});
+  bindBench($('sheet'),r,code,()=>{try{render();}catch(e){}if((L.reports||{})[code]||(L.cup||{})[code])reportSummary(code);else{L.cup=L.cup||{};L.cup[code]=r;reportSummary(code).then(()=>{delete L.cup[code];});}});
   $('sheet').querySelectorAll('[data-scpast]').forEach(x=>x.onclick=()=>{const s=x.dataset.scpast,o=s==='heim'?'gast':'heim',d=/^(\d{4})(\d{2})(\d{2})/.exec(r.dk||'');
     scoutReportSheet(r[s].team,false,{typ:r.cup?'pokal':'liga',weHome:o==='heim',known:true,home:H.team,away:G.team,ph:H.team,pa:G.team,usProg:r[o].team,usLabel:isOurTeam(r[o].team)?null:r[o].team,datum:d?d[1]+'-'+d[2]+'-'+d[3]:'',zeit:'',halle:'',src:'past',asOf:okDk(r.dk)?r.dk:null,backNr:code});});
   if($('rs_apdf'))$('rs_apdf').onclick=async()=>{const btn=$('rs_apdf');btn.disabled=true;btn.textContent='PDF wird erstellt …';try{if(!window.jspdf)await loadScript(JSPDF_URL);
