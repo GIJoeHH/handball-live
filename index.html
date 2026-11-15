@@ -725,7 +725,7 @@ function parseReport(pages){
 
 (function(){
 const KEY='hb-live-proto-v1';
-const APP_VERSION='63';window.HB_APP_VERSION=APP_VERSION;
+const APP_VERSION='64';window.HB_APP_VERSION=APP_VERSION;
 /* Installierte App erkennen (iPad: navigator.standalone, sonst display-mode) */
 const STANDALONE=!!(window.navigator.standalone||(window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches));
 if(STANDALONE)document.documentElement.classList.add('standalone');
@@ -3718,6 +3718,13 @@ function pdbImportSheet(){
     pdbSave();save();closeSheet();pdbImport=null;toast(`${L.length} Spieler übernommen (${Object.entries(cnt).map(([s,n])=>s+': '+n).join(', ')})`);settings('pdb');};
 }
 function pdbSeasonOpts(cur){const L=[];let s=seasonNow();for(let i=0;i<10;i++){L.push(s);s=prevSeason(s);}if(cur&&!L.includes(cur))L.push(cur);return L.map(x=>`<option${x===cur?' selected':''}>${x}</option>`).join('');}
+/* Mehrere Tabellen derselben Saison (z. B. Hin- und Rückrunde in zwei Dateien) werden je Spieler zusammengefasst */
+function pdbCombine(name,team,parts,now){const F=Object.keys(parts).sort((a,b)=>a.localeCompare(b,'de',{numeric:true}));
+  if(F.length===1){const x=parts[F[0]];return{name,team,nr:null,spiele:x.spiele,tore:x.tore,extra:x.extra||{},src:'Tabelle '+F[0],parts,upd:now};}
+  const sum=f=>{const v=F.map(k=>f(parts[k])).filter(x=>x!=null&&!isNaN(+x));return v.length?v.reduce((a,b)=>a+ +b,0):null;},lab=f=>f.replace(/\.[a-z0-9]+$/i,''),extra={};
+  for(const f of F){const x=parts[f];extra[lab(f)]=`${x.tore??'–'} Tore in ${x.spiele??'–'} Spielen`;}
+  const best=F.map(k=>+((parts[k].extra||{})['Bestes Spiel'])).filter(v=>!isNaN(v));if(best.length)extra['Bestes Spiel']=String(Math.max(...best));
+  return{name,team,nr:null,spiele:sum(x=>x.spiele),tore:sum(x=>x.tore),extra,src:'Tabellen '+F.map(lab).join(' + '),parts,upd:now};}
 function pdbImportTeams(){
   const I=pdbImport,{players,teams}=I.ts,tables=I.ts.tables||[];I.season=I.season||prevSeason(seasonNow());
   const extraN=players.filter(p=>p.from).length;
@@ -3732,10 +3739,15 @@ function pdbImportTeams(){
   $('pi_season').onchange=()=>{I.season=$('pi_season').value;pdbImportTeams();};
   $('pi_single').onclick=()=>{I.mode='sheet';pdbImportSheet();};
   $('pi_go').onclick=()=>{const rec=seasonRec(I.season),now=Date.now();
-    for(const p of players){const q={name:p.name,team:p.team,nr:p.nr,spiele:p.spiele,tore:p.tore,extra:p.extra,src:'Tabelle '+I.file,upd:now};rec.players[pkey(p.name)+'|'+normT(p.team||'')]=q;}
+    let merged=0;
+    for(const p of players){let k=pkey(p.name)+'|'+normT(p.team||'');
+      if(!rec.players[k]&&ourClub(p.team)){const hit=Object.entries(rec.players).find(([kk,e])=>normT(e.team||'')===normT(p.team||'')&&samePlayer(e.name,p.name,true));if(hit)k=hit[0];}
+      const e=rec.players[k],parts=e&&e.parts?Object.assign({},e.parts):e&&/^Tabelle /.test(e.src||'')&&e.src!=='Tabelle '+I.file?{[e.src.replace(/^Tabelle /,'')]:{spiele:e.spiele,tore:e.tore,extra:e.extra||{}}}:{};
+      parts[I.file]={spiele:p.spiele,tore:p.tore,extra:p.extra||{}};if(Object.keys(parts).length>1)merged++;
+      rec.players[k]=pdbCombine(e&&e.name.length>p.name.length?e.name:p.name,p.team,parts,now);}
     if(tables.length){rec.tables=(rec.tables||[]).filter(t=>t.src!==I.file);rec.tables.push({src:I.file,teams:tables[0].teams,upd:now});}
     if(I.season<seasonNow()&&!rec.closed){rec.closed=true;rec.archivedAt=now;}
-    pdbSave();save();closeSheet();pdbImport=null;toast(`${players.length} Spieler${tables.length?' und Tabelle':''} für ${I.season} übernommen`);settings('pdb');};
+    pdbSave();save();closeSheet();pdbImport=null;toast(`${players.length} Spieler${tables.length?' und Tabelle':''} für ${I.season} übernommen${merged?`, ${merged} mit vorhandener Tabelle zusammengefasst`:''}`);settings('pdb');};
 }
 function pdbRowsFromImport(){
   const I=pdbImport,M=I.map||{},out=[],num=v=>{if(v===''||v==null)return null;const n=+String(v).replace(',','.');return isNaN(n)?null:n;};
